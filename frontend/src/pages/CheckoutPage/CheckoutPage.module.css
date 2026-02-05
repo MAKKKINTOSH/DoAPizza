@@ -1,0 +1,115 @@
+.title {
+  margin: 0 0 24px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.empty .title {
+  margin-bottom: 16px;
+}
+
+.emptyText {
+  margin: 0;
+  font-size: 16px;
+  color: var(--color-muted);
+}
+
+.form {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tableSection {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.tableTitle {
+  margin: 0;
+  padding: 16px 20px;
+  font-size: 17px;
+  font-weight: 600;
+  background: var(--color-bg);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead {
+  background: var(--color-bg);
+}
+
+.table thead th {
+  padding: 14px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.table tbody td {
+  padding: 12px 20px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table td:nth-child(3),
+.table td:nth-child(4),
+.table td:nth-child(5) {
+  text-align: right;
+}
+
+.table th:nth-child(3),
+.table th:nth-child(4),
+.table th:nth-child(5) {
+  text-align: right;
+}
+
+.cellSum {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.tableTotal {
+  padding: 16px 20px;
+  font-size: 18px;
+  font-weight: 600;
+  background: var(--color-bg);
+  border-top: 2px solid var(--color-border);
+}
+
+.tableTotal strong {
+  color: var(--color-primary);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.fieldsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.submitRow {
+  margin-top: 8px;
+}
