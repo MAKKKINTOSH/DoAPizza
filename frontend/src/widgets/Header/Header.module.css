@@ -113,9 +113,13 @@
 }
 
 .logoutBtn {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  padding-inline: 22px;
+  border-radius: 0;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  background: transparent;
+  padding-inline: 20px;
+  font-weight: 600;
 }
 
 .logoutBtn:hover {
