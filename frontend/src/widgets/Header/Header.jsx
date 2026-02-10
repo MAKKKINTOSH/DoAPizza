@@ -1,16 +1,12 @@
-import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth';
 import { useCart } from '../../entities/cart';
-import { CartModal } from '../CartModal';
 import { APP_NAME } from '../../shared/config';
-import { formatPrice } from '../../shared/lib/formatPrice';
 import styles from './Header.module.css';
 
 export function Header() {
-  const [cartOpen, setCartOpen] = useState(false);
   const { isAuthenticated, role, logout } = useAuth();
-  const { items, totalPrice } = useCart();
+  const { items } = useCart();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -18,57 +14,72 @@ export function Header() {
     navigate('/');
   };
 
-  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const hasItems = items.length > 0;
+
+  const navBtnClassName = ({ isActive }) =>
+    `${styles.navBtn} ${isActive ? styles.active : ''}`;
 
   return (
-    <>
-      <header className={styles.header}>
-        <div className={styles.inner}>
-          <NavLink to="/" className={styles.logo}>
-            {APP_NAME}
+    <header className={styles.header}>
+      <div className={styles.inner}>
+        <NavLink to="/" className={styles.logo}>
+          {APP_NAME}
+        </NavLink>
+
+        <nav className={styles.nav}>
+          <NavLink to="/" className={navBtnClassName}>
+            Меню
           </NavLink>
 
-          <nav className={styles.nav}>
-            <NavLink to="/" className={({ isActive }) => `${styles.navBtn} ${isActive ? styles.active : ''}`}>
-              Меню
+          <NavLink to="/about" className={navBtnClassName}>
+            О нас
+          </NavLink>
+
+          {hasItems && (
+            <NavLink to="/checkout" className={navBtnClassName}>
+              Оформление заказа
             </NavLink>
+          )}
+
+          {isAuthenticated && (
+            <NavLink to="/profile" className={navBtnClassName}>
+              Профиль
+            </NavLink>
+          )}
+
+          {isAuthenticated && role === 'COURIER' && (
+            <NavLink to="/courier-orders" className={navBtnClassName}>
+              Мои заказы
+            </NavLink>
+          )}
+
+          {role === 'ADMIN' && (
+            <NavLink to="/admin" className={navBtnClassName}>
+              Админка
+            </NavLink>
+          )}
+        </nav>
+
+        <div className={styles.right}>
+          {isAuthenticated ? (
             <button
               type="button"
-              className={`${styles.navBtn} ${cartOpen ? styles.active : ''}`}
-              onClick={() => setCartOpen(true)}
+              onClick={handleLogout}
+              className={`${styles.navBtn} ${styles.logoutBtn}`}
             >
-              Корзина
-              {itemCount > 0 && <span className={styles.badge}>{itemCount}</span>}
-              {totalPrice > 0 && <span className={styles.sum}>{formatPrice(totalPrice)}</span>}
+              Выход
             </button>
-          </nav>
-
-          <div className={styles.right}>
-            {isAuthenticated ? (
-              <>
-                {role === 'ADMIN' && (
-                  <NavLink to="/admin" className={styles.navBtn}>
-                    Админка
-                  </NavLink>
-                )}
-                <button type="button" onClick={handleLogout} className={styles.navBtn}>
-                  Выход
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className={styles.navBtn}
-              >
-                Вход
-              </button>
-            )}
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className={`${styles.navBtn} ${styles.loginBtn}`}
+            >
+              Вход
+            </button>
+          )}
         </div>
-      </header>
-
-      <CartModal isOpen={cartOpen} onClose={() => setCartOpen(false)} />
-    </>
+      </div>
+    </header>
   );
 }

@@ -12,6 +12,8 @@
   max-width: 1200px;
   margin: 0 auto;
   min-height: 56px;
+  padding: 0 120px;
+  box-sizing: border-box;
 }
 
 .logo {
@@ -33,11 +35,12 @@
   display: flex;
   align-items: stretch;
   margin-left: 0;
+  gap: 0;
 }
 
 .navBtn {
-  min-width: 110px;
-  padding: 0 20px;
+  min-width: 90px;
+  padding: 0 16px;
   font-size: 14px;
   font-weight: 500;
   color: var(--color-text);
@@ -53,13 +56,17 @@
   gap: 6px;
 }
 
+.navBtn + .navBtn {
+  border-left: 1px solid var(--color-border);
+}
+
 .navBtn:hover {
   background: var(--color-bg);
   color: var(--color-text);
   text-decoration: none;
 }
 
-.navBtn.active {
+.active {
   background: var(--color-bg);
   color: var(--color-primary);
   font-weight: 600;
@@ -88,4 +95,47 @@
   display: flex;
   align-items: stretch;
   margin-left: auto;
+  gap: 8px;
+}
+
+.loginBtn {
+  border-radius: 0;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  background: transparent;
+  padding-inline: 20px;
+  font-weight: 600;
+}
+
+.loginBtn:hover {
+  background: var(--color-bg);
+}
+
+.logoutBtn {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding-inline: 22px;
+}
+
+.logoutBtn:hover {
+  border-color: var(--color-border);
+}
+
+@media (max-width: 1440px) {
+  .inner {
+    padding: 0 100px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .inner {
+    padding: 0 60px;
+  }
+}
+
+@media (max-width: 900px) {
+  .inner {
+    padding: 0 20px;
+  }
 }
