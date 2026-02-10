@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class Item(BaseModel):
-    name: str
+    name: str | None = None
     qty: int = Field(default=1, ge=1)
     size_cm: int | None = Field(default=None, ge=1)
     variant: str | None = None

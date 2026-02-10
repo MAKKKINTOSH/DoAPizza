@@ -37,33 +37,75 @@ class LLMClient:
             return LLMResult.model_validate(data)
         except ValidationError as exc:
             raise LLMError(f"LLM JSON schema validation failed: {exc}") from exc
-
+ 
     def _system_prompt(self) -> str:
         return (
-            "You extract pizza order entities. "
-            "Return only strict JSON, no markdown. "
-            "All user-facing messages must be in Russian. "
-            "Schema: {"
-            "\"entities\": {"
-            "\"items\": [{\"name\": string, \"qty\": int, \"size_cm\": int|null, "
-            "\"variant\": string|null, \"modifiers\": [string]}], "
-            "\"delivery_type\": string|null, \"address\": string|null, "
-            "\"time\": {\"type\": \"asap\"|\"by_time\"|\"in_minutes\"|null, "
-            "\"value\": string|int|null}, \"phone\": string|null, \"comment\": string|null}, "
-            "\"missing\": [string], "
-            "\"choices\": {\"field\": string, \"options\": [string], \"item_index\": int|null} | null, "
-            "\"message\": string, "
-            "\"confidence\": number}"
-        )
+            "Ты — NLU/slot-filling движок для оформления заказа пиццы.\n"
+            "Твоя задача: извлечь сущности из текста и решить, чего не хватает.\n"
+            "Верни ТОЛЬКО валидный JSON (один объект), без markdown, без комментариев.\n"
+            "ВСЕ строки в поле message — по-русски.\n"
+            "\n"
+            "КЛЮЧЕВЫЕ ПРАВИЛА:\n"
+            "1) item.name — это НАЗВАНИЕ ПИЦЦЫ/позиции (например: 'Пепперони', '4 сыра').\n"
+            "   НЕЛЬЗЯ ставить туда общие слова: 'пицца', 'пиццу', 'пиццы', 'заказ'.\n"
+            "   Если название не указано явно — item.name = null и добавь missing 'items[0].name'.\n"
+            "2) Нормализация модификаторов: приводи к нормальной форме.\n"
+            "   Пример: 'ананасами' -> 'ананасы'. 'с чесночным соусом' -> 'чесночный соус'.\n"
+            "3) Если missing НЕ пустой:\n"
+            "   - message ОБЯЗАН быть ОДНИМ коротким вопросом про СЛЕДУЮЩЕЕ по приоритету поле.\n"
+            "   - choices (если возможно) должен предлагать варианты для этого вопроса.\n"
+            "4) Если missing пустой: message — короткое подтверждение распознанного заказа (не 'Заказ готов.').\n"
+            "5) Не придумывай данные: не выдумывай адрес/телефон/время/размер/название.\n"
+            "6) Объединяй с текущим state: уже заполненные поля не перетирай,\n"
+            "   кроме случаев явного исправления пользователем ('не 26, а 30').\n"
+            "\n"
+            "ПРИОРИТЕТ ВОПРОСОВ (что спрашивать следующим):\n"
+            "A) items[0].name (если null/непонятно)\n"
+            "B) items[0].size_cm (если не указан)\n"
+            "C) items[0].variant (если не указан, но пользователь намекнул на выбор 'тонкое/традиционное')\n"
+            "D) delivery_type (если не указан)\n"
+            "E) address (ТОЛЬКО если delivery_type='delivery' и адрес отсутствует)\n"
+            "F) phone (если отсутствует)\n"
+            "G) time (если отсутствует — можно оставить null и не обязательно спрашивать)\n"
+            "\n"
+            "СХЕМА JSON (строго эти ключи):\n"
+            "{\n"
+            '  "entities": {\n'
+            '    "items": [{"name": string|null, "qty": int, "size_cm": int|null, "variant": string|null, "modifiers": [string]}],\n'
+            '    "delivery_type": string|null,\n'
+            '    "address": string|null,\n'
+            '    "time": {"type": "asap"|"by_time"|"in_minutes", "value": string|int|null} | null,\n'
+            '    "phone": string|null,\n'
+            '    "comment": string|null\n'
+            "  },\n"
+            '  "missing": [string],\n'
+            '  "choices": {"field": string, "options": [string], "item_index": int|null} | null,\n'
+            '  "message": string,\n'
+            '  "confidence": number\n'
+            "}\n"
+            "\n"
+            "FEW-SHOT ПРИМЕР:\n"
+            "Ввод: 'можно пиццу пепперони 26см с чесночным соусом и сверху с ананасами'\n"
+            "Вывод:\n"
+            "{\n"
+            '  "entities": {\n'
+            '    "items": [{"name":"Пепперони","qty":1,"size_cm":26,"variant":null,"modifiers":["чесночный соус","ананасы"]}],\n'
+            '    "delivery_type": null, "address": null, "time": null, "phone": null, "comment": null\n'
+            "  },\n"
+            '  "missing": ["delivery_type"],\n'
+            '  "choices": {"field":"delivery_type","options":["доставка","самовывоз"],"item_index": null},\n'
+            '  "message": "Доставка или самовывоз?",\n'
+            '  "confidence": 0.78\n'
+            "}\n"
+        ) 
 
     def _user_prompt(self, text: str, state: State) -> str:
-        state_json = json.dumps(state.model_dump(), ensure_ascii=True)
+        state_json = json.dumps(state.model_dump(), ensure_ascii=False)
         return (
-            "Text: " + text + "\n"
-            "Current state JSON: " + state_json + "\n"
-            "Rules: merge with current state; only fill values you can extract; "
-            "if a choice is needed (size/variant/etc), return choices with options and put that field in missing; "
-            "if nothing is missing, missing must be empty; return valid JSON only."
+            f"Текст пользователя: {text}\n"
+            f"Текущее состояние (state) JSON: {state_json}\n"
+            "Сделай merge со state по правилам из system.\n"
+            "Верни только JSON по схеме."
         )
 
     def _chat(self, system_prompt: str, user_prompt: str) -> str:
@@ -99,15 +141,30 @@ class LLMClient:
         raise LLMError(f"LLM request failed: {last_exc}")
 
     def _parse_json_with_fix(self, content: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            fix_prompt = (
-                "Your previous reply was invalid JSON. "
-                "Return only valid JSON that matches the schema, no markdown, no extra text."
-            )
-            repair_content = self._chat(fix_prompt, f"Original prompt: {user_prompt}\nInvalid JSON: {content}")
+        def try_load(s: str) -> dict[str, Any] | None:
             try:
-                return json.loads(repair_content)
-            except json.JSONDecodeError as exc:
-                raise LLMError("LLM JSON repair failed") from exc
+                return json.loads(s)
+            except json.JSONDecodeError:
+                # попытка вытащить первый JSON-объект из текста
+                start = s.find("{")
+                end = s.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    try:
+                        return json.loads(s[start:end+1])
+                    except json.JSONDecodeError:
+                        return None
+                return None
+
+        parsed = try_load(content)
+        if parsed is not None:
+            return parsed
+
+        repair_system = system_prompt + "\n\n" + (
+            "Твоя предыдущая выдача была НЕ валидным JSON.\n"
+            "СРОЧНО: верни ТОЛЬКО валидный JSON по той же схеме, без лишних ключей и текста."
+        )
+        repair_content = self._chat(repair_system, f"Исходный user prompt:\n{user_prompt}\n\nНевалидный ответ:\n{content}")
+        parsed2 = try_load(repair_content)
+        if parsed2 is None:
+            raise LLMError("LLM JSON repair failed")
+        return parsed2
