@@ -3,7 +3,7 @@ import os
 import time
 from typing import Any
 
-import httpx
+from openai import OpenAI
 from pydantic import BaseModel, Field, ValidationError
 
 from .schemas import Choice, Entities, State
@@ -23,10 +23,20 @@ class LLMResult(BaseModel):
 
 class LLMClient:
     def __init__(self) -> None:
-        self.base_url = os.getenv("LLM_BASE_URL", "http://localhost:1234/v1").rstrip("/")
-        self.model = os.getenv("LLM_MODEL", "Qwen2.5-7B-Instruct")
+        self.base_url = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+        self.api_key = os.getenv("LLM_API_KEY", "").strip() or os.getenv("OPENROUTER_API_KEY", "").strip()
+        self.model = os.getenv("LLM_MODEL", "mistralai/mistral-small-3.1-24b-instruct:free")
+        self.site_url = os.getenv("OPENROUTER_SITE_URL", "").strip()
+        self.site_name = os.getenv("OPENROUTER_SITE_NAME", "").strip()
+        self.prompt_mode = os.getenv("LLM_PROMPT_MODE", "auto").strip().lower()
         self.timeout = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
         self.retries = int(os.getenv("LLM_RETRIES", "2"))
+        self._force_user_only = False
+        self.client = OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key or "not-needed",
+            timeout=self.timeout,
+        )
 
     def extract(self, text: str, state: State) -> LLMResult:
         system_prompt = self._system_prompt()
@@ -109,36 +119,123 @@ class LLMClient:
         )
 
     def _chat(self, system_prompt: str, user_prompt: str) -> str:
-        url = f"{self.base_url}/chat/completions"
-        payload = {
-            "model": self.model,
-            "messages": [
+        if self._is_openrouter() and not self.api_key:
+            raise LLMError("OPENROUTER_API_KEY is not set. Add it to nlp-service/.env.")
+
+        mode = self._effective_prompt_mode()
+        if mode == "system_user":
+            return self._request_with_retries(self._build_payload(system_prompt, user_prompt, mode))
+
+        if mode == "user_only":
+            return self._request_with_retries(self._build_payload(system_prompt, user_prompt, mode))
+
+        try:
+            return self._request_with_retries(self._build_payload(system_prompt, user_prompt, "system_user"))
+        except LLMError as exc:
+            if not self._is_system_instruction_error(str(exc)):
+                raise
+            self._force_user_only = True
+            return self._request_with_retries(self._build_payload(system_prompt, user_prompt, "user_only"))
+
+    def _build_payload(self, system_prompt: str, user_prompt: str, mode: str) -> dict[str, Any]:
+        if mode == "user_only":
+            messages = [
+                {
+                    "role": "user",
+                    "content": (
+                        f"Служебные инструкции:\n{system_prompt}\n\n"
+                        f"Запрос:\n{user_prompt}"
+                    ),
+                }
+            ]
+        else:
+            messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
-            ],
+            ]
+
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
             "temperature": 0,
         }
-        data = self._post_with_retries(url, payload)
-        try:
-            return data["choices"][0]["message"]["content"].strip()
-        except (KeyError, IndexError, TypeError) as exc:
-            raise LLMError(f"Unexpected LLM response format: {data}") from exc
 
-    def _post_with_retries(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
+        headers = self._extra_headers()
+        if headers:
+            payload["extra_headers"] = headers
+        return payload
+
+    def _request_with_retries(self, payload: dict[str, Any]) -> str:
         last_exc: Exception | None = None
         for attempt in range(self.retries + 1):
             try:
-                with httpx.Client(timeout=self.timeout) as client:
-                    response = client.post(url, json=payload)
-                response.raise_for_status()
-                return response.json()
-            except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as exc:
+                completion = self.client.chat.completions.create(**payload)
+                return self._extract_content(completion)
+            except Exception as exc:
                 last_exc = exc
+                if self._is_system_instruction_error(str(exc)):
+                    raise LLMError(f"LLM request failed: {exc}") from exc
                 if attempt < self.retries:
                     time.sleep(0.5 * (attempt + 1))
                     continue
                 raise LLMError(f"LLM request failed after retries: {exc}") from exc
         raise LLMError(f"LLM request failed: {last_exc}")
+
+    def _extra_headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        if self.site_url:
+            headers["HTTP-Referer"] = self.site_url
+        if self.site_name:
+            headers["X-Title"] = self.site_name
+        return headers
+
+    def _effective_prompt_mode(self) -> str:
+        if self._force_user_only:
+            return "user_only"
+        if self.prompt_mode in {"system_user", "user_only", "auto"}:
+            return self.prompt_mode
+        return "auto"
+
+    def _is_openrouter(self) -> bool:
+        return "openrouter.ai" in self.base_url.lower()
+
+    def _is_system_instruction_error(self, message: str) -> bool:
+        m = message.lower()
+        markers = [
+            "developer instruction is not enabled",
+            "system role",
+            "unsupported value",
+            "developer instructions",
+            "unsupported role",
+            "role \"system\"",
+            "role \"developer\"",
+        ]
+        return any(marker in m for marker in markers)
+
+    def _extract_content(self, completion: Any) -> str:
+        try:
+            content = completion.choices[0].message.content
+        except (AttributeError, IndexError, KeyError, TypeError) as exc:
+            raise LLMError(f"Unexpected LLM response format: {completion}") from exc
+
+        if isinstance(content, str):
+            return content.strip()
+
+        if isinstance(content, list):
+            parts: list[str] = []
+            for part in content:
+                if isinstance(part, dict):
+                    text = part.get("text")
+                else:
+                    text = getattr(part, "text", None)
+
+                if isinstance(text, str) and text:
+                    parts.append(text)
+
+            if parts:
+                return "\n".join(parts).strip()
+
+        raise LLMError(f"Unexpected LLM message content type: {type(content).__name__}")
 
     def _parse_json_with_fix(self, content: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
         def try_load(s: str) -> dict[str, Any] | None:
