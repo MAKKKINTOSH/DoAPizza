@@ -44,41 +44,48 @@ export function CartModal({ isOpen, onClose }) {
 
                   return (
                     <li key={`${item.dish.id}-${item.sizeId || 'x'}-${idx}`} className={styles.item}>
-                      <div className={styles.itemInfo}>
-                        <span className={styles.itemName}>
-                          {item.dish.name}
-                          {sizeName && <span className={styles.size}> • {sizeName}</span>}
-                        </span>
-                        <span className={styles.itemPrice}>{formatPrice(price)}</span>
-                      </div>
-                      <div className={styles.itemRow}>
-                        <div className={styles.quantity}>
+                      {item.dish.image && (
+                        <div className={styles.itemImageWrap}>
+                          <img src={item.dish.image} alt={item.dish.name} className={styles.itemImage} />
+                        </div>
+                      )}
+                      <div className={styles.itemContent}>
+                        <div className={styles.itemInfo}>
+                          <span className={styles.itemName}>
+                            {item.dish.name}
+                            {sizeName && <span className={styles.size}> • {sizeName}</span>}
+                          </span>
+                          <span className={styles.itemPrice}>{formatPrice(price)}</span>
+                        </div>
+                        <div className={styles.itemRow}>
+                          <div className={styles.quantity}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateQuantity(item.dish.id, item.sizeId, item.quantity - 1)
+                              }
+                            >
+                              −
+                            </button>
+                            <span>{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateQuantity(item.dish.id, item.sizeId, item.quantity + 1)
+                              }
+                            >
+                              +
+                            </button>
+                          </div>
+                          <span className={styles.itemTotal}>{formatPrice(price * item.quantity)}</span>
                           <button
                             type="button"
-                            onClick={() =>
-                              updateQuantity(item.dish.id, item.sizeId, item.quantity - 1)
-                            }
+                            className={styles.remove}
+                            onClick={() => removeItem(item.dish.id, item.sizeId)}
                           >
-                            −
-                          </button>
-                          <span>{item.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateQuantity(item.dish.id, item.sizeId, item.quantity + 1)
-                            }
-                          >
-                            +
+                            Удалить
                           </button>
                         </div>
-                        <span className={styles.itemTotal}>{formatPrice(price * item.quantity)}</span>
-                        <button
-                          type="button"
-                          className={styles.remove}
-                          onClick={() => removeItem(item.dish.id, item.sizeId)}
-                        >
-                          Удалить
-                        </button>
                       </div>
                     </li>
                   );

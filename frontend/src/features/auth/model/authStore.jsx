@@ -2,16 +2,8 @@ import { createContext, useContext, useState, useCallback } from 'react';
 
 const AuthContext = createContext(null);
 
-// Мок-пользователи.
-// Код для входа (одноразовый код в демо): 12345
-// Номера (можно вводить как 7900 000 00 01 / 7900 000 00 02 и т.п., мы берём последние 10 цифр):
-// - Клиент: 7900 000 00 01  → 9000000001
-// - Курьер: 7900 000 00 02  → 9000000002
-const MOCK_USERS = [
-  { id: 1, phone: '9001234567', code: '12345', role: 'ADMIN' },
-  { id: 2, phone: '9000000001', code: '12345', role: 'CLIENT' },
-  { id: 3, phone: '9000000002', code: '12345', role: 'COURIER' },
-];
+// Тестовый код для входа: 1234
+// Любой номер телефона с кодом 1234 авторизуется как клиент
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -24,16 +16,20 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const cleanPhone = String(phone).replace(/\D/g, '').slice(-10);
-      const found = MOCK_USERS.find(
-        (u) => u.phone === cleanPhone && u.code === code
-      );
-      if (found) {
-        const userData = { id: found.id, phone: found.phone, role: found.role };
+      
+      // Проверяем только код - если код 1234, авторизуем как клиента
+      if (code === '1234' && cleanPhone.length === 10) {
+        const userData = { 
+          id: Date.now(), // Временный ID
+          phone: cleanPhone, 
+          role: 'CLIENT' 
+        };
         setUser(userData);
         localStorage.setItem('doapizza_user', JSON.stringify(userData));
-        return { success: true, role: found.role };
+        return { success: true, role: 'CLIENT' };
       }
-      return { success: false, message: 'Неверный телефон или код' };
+      
+      return { success: false, message: 'Неверный код. Используйте тестовый код: 1234' };
     } finally {
       setLoading(false);
     }
