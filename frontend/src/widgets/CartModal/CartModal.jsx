@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../entities/cart';
+import { useAuth } from '../../features/auth';
 import { PIZZA_SIZES } from '../../entities/dish';
 import { Button } from '../../shared/ui/Button';
 import { formatPrice } from '../../shared/lib/formatPrice';
@@ -7,6 +8,7 @@ import styles from './CartModal.module.css';
 
 export function CartModal({ isOpen, onClose }) {
   const { items, totalPrice, updateQuantity, removeItem, getItemPrice } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -20,7 +22,10 @@ export function CartModal({ isOpen, onClose }) {
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Корзина</h2>
+          <div>
+            <h2 className={styles.title}>Корзина</h2>
+            {user?.name && <p className={styles.userName}>Здравствуйте, {user.name}!</p>}
+          </div>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Закрыть">
             ×
           </button>

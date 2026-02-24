@@ -35,6 +35,13 @@
   font-weight: 700;
 }
 
+.userName {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
 .close {
   width: 40px;
   height: 40px;

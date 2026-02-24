@@ -8,7 +8,18 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('doapizza_user');
-    return saved ? JSON.parse(saved) : null;
+    if (saved) {
+      const userData = JSON.parse(saved);
+      // Восстанавливаем имя из отдельного хранилища, если его нет в userData
+      if (!userData.name) {
+        const savedName = localStorage.getItem('doapizza_user_name');
+        if (savedName) {
+          userData.name = savedName;
+        }
+      }
+      return userData;
+    }
+    return null;
   });
   const [loading, setLoading] = useState(false);
 
@@ -19,10 +30,13 @@ export function AuthProvider({ children }) {
       
       // Проверяем только код - если код 1234, авторизуем как клиента
       if (code === '1234' && cleanPhone.length === 10) {
+        // Восстанавливаем сохраненное имя, если есть
+        const savedName = localStorage.getItem('doapizza_user_name') || '';
         const userData = { 
           id: Date.now(), // Временный ID
           phone: cleanPhone, 
-          role: 'CLIENT' 
+          role: 'CLIENT',
+          name: savedName
         };
         setUser(userData);
         localStorage.setItem('doapizza_user', JSON.stringify(userData));
@@ -35,9 +49,20 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const updateUserName = useCallback((name) => {
+    setUser((prevUser) => {
+      if (!prevUser) return prevUser;
+      const updatedUser = { ...prevUser, name };
+      localStorage.setItem('doapizza_user', JSON.stringify(updatedUser));
+      localStorage.setItem('doapizza_user_name', name);
+      return updatedUser;
+    });
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('doapizza_user');
+    // Имя не удаляем при выходе, чтобы сохранить для следующего входа
   }, []);
 
   return (
@@ -49,6 +74,7 @@ export function AuthProvider({ children }) {
         loading,
         login,
         logout,
+        updateUserName,
       }}
     >
       {children}

@@ -57,3 +57,31 @@
   color: var(--color-text);
 }
 
+.nameDisplay {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nameValue {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  flex: 1;
+  min-width: 200px;
+}
+
+.nameEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nameActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+

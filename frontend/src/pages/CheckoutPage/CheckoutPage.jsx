@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../entities/cart';
+import { useAuth } from '../../features/auth';
 import { PIZZA_SIZES } from '../../entities/dish';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
@@ -9,8 +10,10 @@ import styles from './CheckoutPage.module.css';
 
 export function CheckoutPage() {
   const { items, totalPrice, getItemPrice, clearCart } = useCart();
+  const { user, updateUserName } = useAuth();
   const navigate = useNavigate();
   const [address, setAddress] = useState({
+    name: user?.name || '',
     address: '',
     phone: '',
     comment: '',
@@ -18,8 +21,19 @@ export function CheckoutPage() {
   });
   const [pickup, setPickup] = useState(false);
 
+  // Обновляем имя при изменении пользователя
+  useEffect(() => {
+    if (user?.name && !address.name) {
+      setAddress((prev) => ({ ...prev, name: user.name }));
+    }
+  }, [user?.name]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    // Сохраняем имя в профиль, если оно было изменено
+    if (address.name && address.name !== user?.name) {
+      updateUserName(address.name);
+    }
     clearCart();
     navigate('/?order=success');
   };
@@ -74,6 +88,14 @@ export function CheckoutPage() {
             Итого: <strong>{formatPrice(totalPrice)}</strong>
           </div>
         </div>
+
+        <Input
+          label="Как к вам обращаться"
+          value={address.name}
+          onChange={(v) => setAddress({ ...address, name: v })}
+          placeholder="Ваше имя"
+          autoComplete="name"
+        />
 
         <label className={styles.checkbox}>
           <input
