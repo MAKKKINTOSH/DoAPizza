@@ -1,10 +1,10 @@
 # nlp-service
 
-Minimal NLP microservice that extracts pizza order entities via OpenRouter or any OpenAI-compatible LLM endpoint.
+Minimal NLP microservice that extracts pizza order entities via any OpenAI-compatible LLM endpoint, including OpenRouter, LM Studio, Ollama, and similar services.
 
 ## Requirements
 - Python 3.11+
-- OpenRouter API key or a local OpenAI-compatible server
+- Any OpenAI-compatible LLM endpoint
 
 ## Setup (uv)
 ```bash
@@ -13,38 +13,77 @@ uv pip install -e ".[dev]"
 ```
 
 ## Run
-```bash
-set LLM_API_KEY=your_api_key_here
-set LLM_BASE_URL=https://openrouter.ai/api/v1
-set LLM_MODEL=mistralai/mistral-small-3.1-24b-instruct:free
-set LLM_PROMPT_MODE=auto
-uv run uvicorn nlp_service.app:app --reload --port 8000
-```
+All runtime behavior is controlled by the same generic variables:
+- `LLM_BASE_URL`
+- `LLM_MODEL`
+- `LLM_API_KEY`
+- `LLM_PROMPT_MODE`
+- `LLM_TRUST_ENV`
 
 Alternatively, put the same variables in `nlp-service/.env`.
-
-Auth rules:
-- `LLM_API_KEY` is used first.
-- If `LLM_API_KEY` is empty, `OPENROUTER_API_KEY` is used.
-- For local OpenAI-compatible servers, API key can stay empty.
 
 Prompt mode:
 - `auto`: try `system+user`, then fallback to `user_only` if the provider rejects system instructions.
 - `system_user`: always send separate `system` and `user` messages.
 - `user_only`: merge instructions into one `user` message.
+- `LLM_TRUST_ENV=false` disables `HTTP_PROXY` / `HTTPS_PROXY` inherited from the shell. This is recommended for local endpoints such as LM Studio.
 
-Optional OpenRouter headers:
-- `OPENROUTER_SITE_URL` -> sent as `HTTP-Referer`
-- `OPENROUTER_SITE_NAME` -> sent as `X-Title`
+Logging:
+- `LOG_LEVEL` controls console verbosity. Recommended default: `INFO`.
+- `LOG_FILE_LEVEL` controls file verbosity. Recommended default: `DEBUG`.
+- `LOG_FILE_PATH` controls the rotating log file path. Default: `logs/nlp-service.log`.
 
-Local LLM example:
+Optional metadata headers:
+- `LLM_SITE_URL` -> sent as `HTTP-Referer`
+- `LLM_SITE_NAME` -> sent as `X-Title`
+
+Backward-compatible aliases are still supported:
+- `OPENROUTER_SITE_URL`
+- `OPENROUTER_SITE_NAME`
+
+OpenRouter example:
+```bash
+set LLM_BASE_URL=https://openrouter.ai/api/v1
+set LLM_API_KEY=your_api_key_here
+set LLM_MODEL=mistralai/mistral-small-3.1-24b-instruct:free
+set LLM_PROMPT_MODE=auto
+set LLM_TRUST_ENV=false
+uv run uvicorn nlp_service.app:app --reload --port 8000
+```
+
+LM Studio example:
 ```bash
 set LLM_BASE_URL=http://localhost:1234/v1
 set LLM_API_KEY=
 set LLM_MODEL=Qwen2.5-7B-Instruct
 set LLM_PROMPT_MODE=system_user
+set LLM_TRUST_ENV=false
 uv run uvicorn nlp_service.app:app --reload --port 8000
 ```
+
+Any other OpenAI-compatible service works the same way:
+```bash
+set LLM_BASE_URL=https://your-provider.example/v1
+set LLM_API_KEY=your_key_if_needed
+set LLM_MODEL=provider-model-name
+set LLM_PROMPT_MODE=auto
+set LLM_TRUST_ENV=false
+uv run uvicorn nlp_service.app:app --reload --port 8000
+```
+
+The logging setup is enabled both for:
+```bash
+uv run uvicorn nlp_service.app:app --reload --port 8000
+```
+
+and for:
+```bash
+uv run python main.py
+```
+
+Both run modes enable:
+- concise console logs for requests and failures
+- detailed rotating file logs for LLM request attempts, retries, and JSON repair
 
 ## API
 - `GET /health` -> `ok`

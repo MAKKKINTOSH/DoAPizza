@@ -18,6 +18,8 @@ Telegram bot service for pizza ordering. It uses `nlp-service` as the dialogue b
 - confirmation step before final submission
 - placeholder catalog validation for pizza names
 
+See product behavior rules in [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md).
+
 ## What the bot does
 
 1. Accepts a free-form order message like an operator would.
@@ -50,7 +52,9 @@ Optional env vars:
 - `TELEGRAM_API_BASE_URL`
 - `TELEGRAM_POLL_TIMEOUT_SECONDS`
 - `HTTP_TIMEOUT_SECONDS`
+- `NLP_REQUEST_TIMEOUT_SECONDS`
 - `CATALOG_PIZZAS`
+- `LOG_LEVEL`
 
 ## Run
 
@@ -59,6 +63,22 @@ uv run python main.py
 ```
 
 The bot uses long polling and stores chat sessions in memory. If the process restarts, active conversations are lost.
+
+## Logging
+
+The bot writes runtime logs to stdout via Python `logging`.
+
+- `LOG_LEVEL=INFO` for normal operation
+- `LOG_LEVEL=DEBUG` to see incoming message previews, Telegram API calls, and NLP request flow
+
+## Local NLP connectivity
+
+For local `NLP_SERVICE_BASE_URL`, use `127.0.0.1`, not `0.0.0.0`.
+
+- correct: `http://127.0.0.1:8182`
+- avoid: `http://0.0.0.0:8182`
+
+The NLP client also ignores proxy environment variables on purpose, so local proxy settings do not interfere with bot-to-NLP traffic.
 
 ## Catalog stub
 

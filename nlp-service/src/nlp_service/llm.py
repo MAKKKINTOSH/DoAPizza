@@ -1,13 +1,16 @@
 import json
+import logging
 import os
 import time
 from typing import Any
 from typing import Literal
 
-from openai import OpenAI
+from openai import DefaultHttpxClient, OpenAI
 from pydantic import BaseModel, Field, ValidationError
 
 from .schemas import Choice, EditOperation, Entities, State
+
+logger = logging.getLogger(__name__)
 
 
 class LLMError(RuntimeError):
@@ -29,26 +32,53 @@ class LLMClient:
         self.base_url = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
         self.api_key = os.getenv("LLM_API_KEY", "").strip() or os.getenv("OPENROUTER_API_KEY", "").strip()
         self.model = os.getenv("LLM_MODEL", "mistralai/mistral-small-3.1-24b-instruct:free")
-        self.site_url = os.getenv("OPENROUTER_SITE_URL", "").strip()
-        self.site_name = os.getenv("OPENROUTER_SITE_NAME", "").strip()
+        self.site_url = os.getenv("LLM_SITE_URL", "").strip() or os.getenv("OPENROUTER_SITE_URL", "").strip()
+        self.site_name = os.getenv("LLM_SITE_NAME", "").strip() or os.getenv("OPENROUTER_SITE_NAME", "").strip()
         self.prompt_mode = os.getenv("LLM_PROMPT_MODE", "auto").strip().lower()
         self.timeout = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
         self.retries = int(os.getenv("LLM_RETRIES", "2"))
+        self.trust_env = _parse_bool(os.getenv("LLM_TRUST_ENV", "false"))
         self._force_user_only = False
         self.client = OpenAI(
             base_url=self.base_url,
             api_key=self.api_key or "not-needed",
             timeout=self.timeout,
+            http_client=DefaultHttpxClient(
+                timeout=self.timeout,
+                trust_env=self.trust_env,
+            ),
         )
 
     def extract(self, text: str, state: State) -> LLMResult:
         system_prompt = self._system_prompt()
         user_prompt = self._user_prompt(text, state)
+        logger.info(
+            "Starting LLM extraction backend=%s base_url=%s model=%s prompt_mode=%s trust_env=%s text_preview=%r items=%s missing=%s",
+            self._backend_label(),
+            self.base_url,
+            self.model,
+            self._effective_prompt_mode(),
+            self.trust_env,
+            _preview_text(text),
+            len(state.entities.items),
+            len(state.missing),
+        )
         content = self._chat(system_prompt, user_prompt)
         data = self._parse_json_with_fix(content, system_prompt, user_prompt)
         try:
-            return LLMResult.model_validate(data)
+            result = LLMResult.model_validate(data)
+            logger.info(
+                "LLM extraction completed confidence=%.2f missing=%s has_choice=%s edit_operations=%s",
+                result.confidence,
+                len(result.missing),
+                result.choices is not None,
+                len(result.edit_operations),
+            )
+            logger.debug("LLM raw JSON payload=%s", data)
+            return result
         except ValidationError as exc:
+            logger.error("LLM JSON schema validation failed detail=%s", exc)
+            logger.debug("LLM JSON schema validation stack", exc_info=True)
             raise LLMError(f"LLM JSON schema validation failed: {exc}") from exc
 
     def _system_prompt(self) -> str:
@@ -123,22 +153,23 @@ class LLMClient:
         )
 
     def _chat(self, system_prompt: str, user_prompt: str) -> str:
-        if self._is_openrouter() and not self.api_key:
-            raise LLMError("OPENROUTER_API_KEY is not set. Add it to nlp-service/.env.")
-
         mode = self._effective_prompt_mode()
         if mode == "system_user":
+            logger.debug("Using explicit system_user prompt mode")
             return self._request_with_retries(self._build_payload(system_prompt, user_prompt, mode))
 
         if mode == "user_only":
+            logger.debug("Using explicit user_only prompt mode")
             return self._request_with_retries(self._build_payload(system_prompt, user_prompt, mode))
 
         try:
+            logger.debug("Trying system_user prompt mode")
             return self._request_with_retries(self._build_payload(system_prompt, user_prompt, "system_user"))
         except LLMError as exc:
             if not self._is_system_instruction_error(str(exc)):
                 raise
             self._force_user_only = True
+            logger.warning("Provider rejected system role, falling back to user_only mode")
             return self._request_with_retries(self._build_payload(system_prompt, user_prompt, "user_only"))
 
     def _build_payload(self, system_prompt: str, user_prompt: str, mode: str) -> dict[str, Any]:
@@ -173,10 +204,25 @@ class LLMClient:
         last_exc: Exception | None = None
         for attempt in range(self.retries + 1):
             try:
+                logger.debug(
+                    "Sending LLM request attempt=%s backend=%s model=%s message_roles=%s",
+                    attempt + 1,
+                    self._backend_label(),
+                    self.model,
+                    [message.get("role") for message in payload.get("messages", [])],
+                )
                 completion = self.client.chat.completions.create(**payload)
+                logger.debug("LLM request succeeded attempt=%s", attempt + 1)
                 return self._extract_content(completion)
             except Exception as exc:
                 last_exc = exc
+                logger.warning(
+                    "LLM request failed attempt=%s/%s error=%s",
+                    attempt + 1,
+                    self.retries + 1,
+                    exc,
+                )
+                logger.debug("LLM request failure stack", exc_info=True)
                 if self._is_system_instruction_error(str(exc)):
                     raise LLMError(f"LLM request failed: {exc}") from exc
                 if attempt < self.retries:
@@ -199,9 +245,6 @@ class LLMClient:
         if self.prompt_mode in {"system_user", "user_only", "auto"}:
             return self.prompt_mode
         return "auto"
-
-    def _is_openrouter(self) -> bool:
-        return "openrouter.ai" in self.base_url.lower()
 
     def _is_system_instruction_error(self, message: str) -> bool:
         normalized = message.lower()
@@ -256,8 +299,11 @@ class LLMClient:
 
         parsed = try_load(content)
         if parsed is not None:
+            logger.debug("LLM response parsed as JSON without repair")
             return parsed
 
+        logger.warning("LLM response was not valid JSON, attempting repair")
+        logger.debug("Invalid LLM content=%r", content)
         repair_system = system_prompt + "\n\n" + (
             "Your previous reply was invalid JSON. "
             "Return only valid JSON that matches the schema, no markdown, no extra text."
@@ -265,5 +311,26 @@ class LLMClient:
         repair_content = self._chat(repair_system, f"Original prompt: {user_prompt}\nInvalid JSON: {content}")
         parsed = try_load(repair_content)
         if parsed is None:
+            logger.error("LLM JSON repair failed")
             raise LLMError("LLM JSON repair failed")
+        logger.debug("LLM JSON repair succeeded repaired_content=%r", repair_content)
         return parsed
+
+    def _backend_label(self) -> str:
+        base_url = self.base_url.lower()
+        if "openrouter.ai" in base_url:
+            return "openrouter"
+        if "localhost" in base_url or "127.0.0.1" in base_url or "host.docker.internal" in base_url:
+            return "openai-compatible-local"
+        return "openai-compatible-remote"
+
+
+def _preview_text(text: str, limit: int = 120) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 3] + "..."
+
+
+def _parse_bool(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}

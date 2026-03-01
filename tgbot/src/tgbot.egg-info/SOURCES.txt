@@ -4,6 +4,7 @@ src/tgbot/__init__.py
 src/tgbot/bot.py
 src/tgbot/catalog.py
 src/tgbot/config.py
+src/tgbot/logging.py
 src/tgbot/nlp_client.py
 src/tgbot/order_service.py
 src/tgbot/schemas.py
@@ -15,4 +16,5 @@ src/tgbot.egg-info/dependency_links.txt
 src/tgbot.egg-info/requires.txt
 src/tgbot.egg-info/top_level.txt
 tests/test_config.py
+tests/test_nlp_client.py
 tests/test_order_service.py

@@ -49,7 +49,7 @@ def test_llm_prompt_prioritizes_add_item_intent() -> None:
 
 def test_llm_auto_falls_back_to_user_only_on_system_rejection(monkeypatch) -> None:
     monkeypatch.setenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_PROMPT_MODE", "auto")
 
     client = LLMClient()
@@ -67,6 +67,32 @@ def test_llm_auto_falls_back_to_user_only_on_system_rejection(monkeypatch) -> No
 
     assert result == "{}"
     assert calls == ["system", "user"]
+
+
+def test_llm_site_headers_use_generic_env_names(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_SITE_URL", "https://example.test")
+    monkeypatch.setenv("LLM_SITE_NAME", "DoAPizza")
+
+    client = LLMClient()
+
+    assert client._extra_headers() == {
+        "HTTP-Referer": "https://example.test",
+        "X-Title": "DoAPizza",
+    }
+
+
+def test_llm_site_headers_keep_openrouter_aliases(monkeypatch) -> None:
+    monkeypatch.delenv("LLM_SITE_URL", raising=False)
+    monkeypatch.delenv("LLM_SITE_NAME", raising=False)
+    monkeypatch.setenv("OPENROUTER_SITE_URL", "https://legacy.test")
+    monkeypatch.setenv("OPENROUTER_SITE_NAME", "LegacyName")
+
+    client = LLMClient()
+
+    assert client._extra_headers() == {
+        "HTTP-Referer": "https://legacy.test",
+        "X-Title": "LegacyName",
+    }
 
 
 def test_llm_parse_json_extracts_embedded_object() -> None:
