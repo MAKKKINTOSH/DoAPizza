@@ -1,10 +1,10 @@
 # nlp-service
 
-Minimal NLP microservice that extracts pizza order entities via an OpenAI-compatible LLM (LM Studio).
+Minimal NLP microservice that extracts pizza order entities via OpenRouter or any OpenAI-compatible LLM endpoint.
 
 ## Requirements
 - Python 3.11+
-- LM Studio OpenAI-compatible server
+- OpenRouter API key or a local OpenAI-compatible server
 
 ## Setup (uv)
 ```bash
@@ -14,8 +14,35 @@ uv pip install -e ".[dev]"
 
 ## Run
 ```bash
+set LLM_API_KEY=your_api_key_here
+set LLM_BASE_URL=https://openrouter.ai/api/v1
+set LLM_MODEL=mistralai/mistral-small-3.1-24b-instruct:free
+set LLM_PROMPT_MODE=auto
+uv run uvicorn nlp_service.app:app --reload --port 8000
+```
+
+Alternatively, put the same variables in `nlp-service/.env`.
+
+Auth rules:
+- `LLM_API_KEY` is used first.
+- If `LLM_API_KEY` is empty, `OPENROUTER_API_KEY` is used.
+- For local OpenAI-compatible servers, API key can stay empty.
+
+Prompt mode:
+- `auto`: try `system+user`, then fallback to `user_only` if the provider rejects system instructions.
+- `system_user`: always send separate `system` and `user` messages.
+- `user_only`: merge instructions into one `user` message.
+
+Optional OpenRouter headers:
+- `OPENROUTER_SITE_URL` -> sent as `HTTP-Referer`
+- `OPENROUTER_SITE_NAME` -> sent as `X-Title`
+
+Local LLM example:
+```bash
 set LLM_BASE_URL=http://localhost:1234/v1
+set LLM_API_KEY=
 set LLM_MODEL=Qwen2.5-7B-Instruct
+set LLM_PROMPT_MODE=system_user
 uv run uvicorn nlp_service.app:app --reload --port 8000
 ```
 

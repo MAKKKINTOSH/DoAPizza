@@ -47,6 +47,36 @@ def test_llm_prompt_prioritizes_add_item_intent() -> None:
     assert "phrases like 'еще маргариту'" in prompt
 
 
+def test_llm_auto_falls_back_to_user_only_on_system_rejection(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_PROMPT_MODE", "auto")
+
+    client = LLMClient()
+    calls: list[str] = []
+
+    def fake_request(payload):
+        calls.append(payload["messages"][0]["role"])
+        if payload["messages"][0]["role"] == "system":
+            raise RuntimeError('unsupported role "system"')
+        return "{}"
+
+    monkeypatch.setattr(client, "_request_with_retries", fake_request)
+
+    result = client._chat("system", "user")
+
+    assert result == "{}"
+    assert calls == ["system", "user"]
+
+
+def test_llm_parse_json_extracts_embedded_object() -> None:
+    client = LLMClient()
+
+    parsed = client._parse_json_with_fix('prefix {"message":"ok","confidence":1} suffix', "system", "user")
+
+    assert parsed == {"message": "ok", "confidence": 1}
+
+
 def test_parse_replace_mode_updates_existing_order(monkeypatch) -> None:
     class DummyLLM:
         def extract(self, text, state):
