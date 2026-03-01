@@ -1,0 +1,71 @@
+Metadata-Version: 2.4
+Name: tgbot
+Version: 0.1.0
+Summary: Telegram bot service for pizza ordering via the NLP module
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: pydantic>=2.7.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+
+# tgbot
+
+Telegram bot service for pizza ordering. It uses `nlp-service` as the dialogue brain and adds:
+
+- Telegram Bot API polling
+- per-chat conversation state
+- confirmation step before final submission
+- placeholder catalog validation for pizza names
+
+## What the bot does
+
+1. Accepts a free-form order message like an operator would.
+2. Sends each user message together with the current dialogue `state` to `nlp-service`.
+3. Repeats follow-up questions returned by NLP (`ASK`, `message`, `choices`).
+4. When NLP returns `READY`, shows an order summary and asks for confirmation.
+5. Rejects pizzas that are not present in the temporary local catalog stub.
+
+## Requirements
+
+- Python 3.11+
+- Running `nlp-service`
+- Telegram bot token from BotFather
+
+## Setup
+
+```bash
+uv venv
+uv pip install -e ".[dev]"
+cp .env.example .env
+```
+
+Required env vars:
+
+- `TELEGRAM_BOT_TOKEN`
+- `NLP_SERVICE_BASE_URL`
+
+Optional env vars:
+
+- `TELEGRAM_API_BASE_URL`
+- `TELEGRAM_POLL_TIMEOUT_SECONDS`
+- `HTTP_TIMEOUT_SECONDS`
+- `CATALOG_PIZZAS`
+
+## Run
+
+```bash
+uv run python main.py
+```
+
+The bot uses long polling and stores chat sessions in memory. If the process restarts, active conversations are lost.
+
+## Catalog stub
+
+Pizza existence is currently checked by a local stub in `CATALOG_PIZZAS`. This is intentional and isolated from NLP. Once the real catalog API appears, replace the verifier implementation in `src/tgbot/catalog.py`.
+
+## Tests
+
+```bash
+uv run pytest
+```

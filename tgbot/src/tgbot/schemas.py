@@ -34,28 +34,10 @@ class Choice(BaseModel):
     requested_value: str | None = None
 
 
-class EditOperation(BaseModel):
-    op: Literal["add_item", "remove_item", "replace_item", "update_item"]
-    item_index: int | None = None
-    item: Item | None = None
-    name: str | None = None
-    qty: int | None = Field(default=None, ge=1)
-    size_cm: int | None = Field(default=None, ge=1)
-    variant: str | None = None
-    modifiers_add: list[str] = Field(default_factory=list)
-    modifiers_remove: list[str] = Field(default_factory=list)
-    modifiers_replace: list[str] | None = None
-
-
 class State(BaseModel):
     entities: Entities = Field(default_factory=Entities)
     missing: list[str] = Field(default_factory=list)
     pending_choice: Choice | None = None
-
-
-class ParseRequest(BaseModel):
-    text: str
-    state: State | None = None
 
 
 class ParseResponse(BaseModel):

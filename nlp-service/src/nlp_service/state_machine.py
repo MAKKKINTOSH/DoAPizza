@@ -1,7 +1,8 @@
 import re
+from collections import Counter
 from typing import Iterable
 
-from .schemas import Entities, State
+from .schemas import Entities, Item, State
 
 
 def apply_pending_choice(state: State, text: str) -> tuple[State, bool, str | None]:
@@ -23,7 +24,14 @@ def merge_entities(base: Entities, incoming: Entities) -> Entities:
     merged = base.model_copy(deep=True)
 
     if incoming.items:
-        merged.items.extend(incoming.items)
+        if _is_same_items(base.items, incoming.items):
+            pass
+        elif _looks_like_full_state_echo(base.items, incoming.items):
+            merged.items = [item.model_copy(deep=True) for item in incoming.items]
+        elif _only_repeats_existing_items(base.items, incoming.items):
+            pass
+        else:
+            merged.items.extend(incoming.items)
 
     for field in ["delivery_type", "address", "time", "phone", "comment"]:
         value = getattr(incoming, field)
@@ -37,6 +45,8 @@ def is_choice_only(text: str) -> bool:
     stripped = text.strip()
     if not stripped:
         return True
+    if _is_skip_text(stripped):
+        return True
     if re.fullmatch(r"\d+", stripped):
         return True
     if re.fullmatch(r"\d+\s*(cm|sm|cm\.)?", stripped, re.IGNORECASE):
@@ -46,22 +56,45 @@ def is_choice_only(text: str) -> bool:
     return False
 
 
+def is_exact_choice_reply(text: str, selected: str | None) -> bool:
+    if selected is None:
+        return False
+
+    stripped = text.strip()
+    if not stripped:
+        return True
+
+    if _normalize(stripped) == _normalize(selected):
+        return True
+
+    digits = re.findall(r"\d+", stripped)
+    if digits and re.findall(r"\d+", selected) == digits:
+        return True
+
+    return False
+
+
 def _match_choice(text: str, options: Iterable[str]) -> str | None:
     stripped = text.strip()
+    opts = list(options)
     if stripped.isdigit():
         idx = int(stripped) - 1
-        opts = list(options)
         if 0 <= idx < len(opts):
             return opts[idx]
 
+    if _is_skip_text(stripped):
+        for opt in opts:
+            if _is_skip_option(opt):
+                return opt
+
     normalized = _normalize(stripped)
-    for opt in options:
+    for opt in opts:
         if normalized == _normalize(opt):
             return opt
 
     digits = re.findall(r"\d+", stripped)
     if digits:
-        for opt in options:
+        for opt in opts:
             if re.findall(r"\d+", opt) == digits:
                 return opt
 
@@ -73,6 +106,9 @@ def _normalize(value: str) -> str:
 
 
 def _apply_choice_value(state: State, field: str, selected: str, item_index: int | None) -> None:
+    if _is_skip_option(selected):
+        return
+
     if field in {"size_cm", "variant", "modifiers"}:
         if not state.entities.items:
             return
@@ -89,4 +125,70 @@ def _apply_choice_value(state: State, field: str, selected: str, item_index: int
         return
 
     if hasattr(state.entities, field):
+        if field == "delivery_type":
+            normalized = _normalize(selected)
+            if normalized in {"доставка", "delivery"}:
+                setattr(state.entities, field, "delivery")
+            elif normalized in {"самовывоз", "pickup"}:
+                setattr(state.entities, field, "pickup")
+            else:
+                setattr(state.entities, field, selected)
+            return
         setattr(state.entities, field, selected)
+
+
+def _is_skip_text(value: str) -> bool:
+    normalized = _normalize(value)
+    return normalized in {
+        "нет",
+        "не надо",
+        "не нужно",
+        "без",
+        "пропустить",
+        "никакие",
+        "никаких",
+    }
+
+
+def _is_skip_option(value: str) -> bool:
+    normalized = _normalize(value)
+    return normalized in {
+        "не добавлять",
+        "без добавок",
+        "без топпингов",
+        "без модификаторов",
+        "нет",
+        "не нужно",
+        "не надо",
+        "пропустить",
+    }
+
+
+def _is_same_items(base_items: list[Item], incoming_items: list[Item]) -> bool:
+    return [_item_signature(item) for item in base_items] == [_item_signature(item) for item in incoming_items]
+
+
+def _looks_like_full_state_echo(base_items: list[Item], incoming_items: list[Item]) -> bool:
+    if not base_items or len(incoming_items) < len(base_items):
+        return False
+    base_signatures = [_item_signature(item) for item in base_items]
+    incoming_prefix = [_item_signature(item) for item in incoming_items[: len(base_items)]]
+    return base_signatures == incoming_prefix
+
+
+def _only_repeats_existing_items(base_items: list[Item], incoming_items: list[Item]) -> bool:
+    if not base_items or not incoming_items:
+        return False
+    base_counter = Counter(_item_signature(item) for item in base_items)
+    incoming_counter = Counter(_item_signature(item) for item in incoming_items)
+    return set(incoming_counter).issubset(set(base_counter))
+
+
+def _item_signature(item: Item) -> tuple[str, int, int | None, str | None, tuple[str, ...]]:
+    return (
+        _normalize(item.name),
+        item.qty,
+        item.size_cm,
+        _normalize(item.variant or "") if item.variant else None,
+        tuple(_normalize(value) for value in item.modifiers),
+    )

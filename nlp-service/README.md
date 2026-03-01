@@ -23,6 +23,12 @@ uv run uvicorn nlp_service.app:app --reload --port 8000
 - `GET /health` -> `ok`
 - `POST /v1/parse` -> `{ action, message, entities, missing, choices?, state, confidence }`
 
+## Behavior notes
+- The parser keeps dialogue `state` between turns.
+- Follow-up choices can be answered in a separate message.
+- Optional modifier questions can be skipped with replies like `не надо` if the choice includes a skip option such as `Не добавлять`.
+- When the user edits an existing order, the NLP layer can now replace the full current order state instead of only appending new items.
+
 ## Curl examples
 1) Full order (likely READY)
 ```bash
