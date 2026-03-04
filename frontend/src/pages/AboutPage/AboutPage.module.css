@@ -1,0 +1,85 @@
+.hero {
+  margin-bottom: 40px;
+}
+
+.title {
+  margin: 0 0 16px;
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--color-muted);
+  max-width: 640px;
+}
+
+.section {
+  margin-bottom: 48px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 16px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.text {
+  margin: 0 0 16px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-text);
+  max-width: 640px;
+}
+
+.text:last-child {
+  margin-bottom: 0;
+}
+
+.mapBlock {
+  margin: 24px 0;
+}
+
+.mapPlaceholder {
+  aspect-ratio: 16/9;
+  max-width: 640px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.address {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.galleryItem {
+  aspect-ratio: 1;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
