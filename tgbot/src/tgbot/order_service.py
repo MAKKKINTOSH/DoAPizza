@@ -1,6 +1,10 @@
-"""
-This module implements order service logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""Dialogue orchestrator for Telegram order flow.
+
+`OrderService` is the main state machine used by the bot:
+- handles command shortcuts (`/start`, reset, confirm, back);
+- keeps draft/edit/checkout steps consistent;
+- delegates free-form parsing to NLP service;
+- hardens parser output with local catalog and safety guards.
 """
 
 from __future__ import annotations
@@ -61,10 +65,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class BotReply:
-    """
-    Represents BotReply.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """UI payload returned to Telegram transport layer."""
     text: str
     reply_keyboard: list[list[str]] | None = None
     remove_keyboard: bool = False
@@ -72,44 +73,20 @@ class BotReply:
 
 
 class OrderService:
-    """
-    Represents OrderService.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Owns conversation flow for a single incoming message."""
     def __init__(
         self,
         nlp_client: NLPClientProtocol,
         session_store: SessionStore,
         catalog_verifier: CatalogVerifier,
     ) -> None:
-        """
-        Execute init.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - nlp_client: input consumed by this function while processing the current request.
-        - session_store: input consumed by this function while processing the current request.
-        - catalog_verifier: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         self._nlp_client = nlp_client
         self._session_store = session_store
         self._catalog_verifier = catalog_verifier
 
     def handle_message(self, chat_id: int, text: str) -> BotReply:
-        """
-        Execute handle message.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Process one user message and return next bot response."""
+        # Normalize once and reuse in all command/intent checks below.
         stripped = text.strip()
         normalized = stripped.lower()
         logger.debug("Handling message chat_id=%s text_preview=%r", chat_id, self._preview_text(stripped))
@@ -118,6 +95,7 @@ class OrderService:
             return BotReply(self._section("Что хотите заказать?", "Напишите заказ свободно. Например: две пепперони 30 см с доставкой."))
 
         if normalized in START_COMMANDS:
+            # New dialog always starts from clean session.
             self._session_store.delete(chat_id)
             logger.info("Started new dialog chat_id=%s", chat_id)
             return BotReply(
@@ -131,6 +109,7 @@ class OrderService:
             )
 
         if normalized in RESET_COMMANDS:
+            # Reset keeps chat alive but drops current state.
             self._session_store.delete(chat_id)
             logger.info("Reset current order chat_id=%s", chat_id)
             return BotReply(
@@ -150,8 +129,10 @@ class OrderService:
         )
 
         if session.editing_field:
+            # Manual edit mode bypasses regular parser branch.
             return self._handle_manual_edit(chat_id, session, stripped)
 
+        # Navigation and mode switches between draft and checkout flow.
         if normalized in ADD_MORE_COMMANDS and session.checkout_step != "draft":
             session.checkout_step = "draft"
             session.awaiting_confirmation = False
@@ -167,6 +148,7 @@ class OrderService:
             )
 
         if normalized in BACK_COMMANDS and session.checkout_step != "draft":
+            # Checkout back-navigation is handled by dedicated step machine.
             return self._go_checkout_back(chat_id, session)
 
         if session.checkout_step == "draft" and normalized in PROCEED_COMMANDS:
@@ -174,6 +156,7 @@ class OrderService:
 
         if session.awaiting_confirmation and normalized in CONFIRM_COMMANDS:
             summary = self._format_order_summary(session.state.entities)
+            # Confirm ends conversation and clears state.
             self._session_store.delete(chat_id)
             logger.info("Order confirmed chat_id=%s items=%s", chat_id, len(session.state.entities.items))
             return BotReply(
@@ -182,6 +165,7 @@ class OrderService:
             )
 
         if session.awaiting_confirmation and normalized in CANCEL_COMMANDS:
+            # Cancel is also terminal for current order state.
             self._session_store.delete(chat_id)
             logger.info("Order canceled chat_id=%s", chat_id)
             return BotReply(
@@ -217,6 +201,7 @@ class OrderService:
             return self._begin_manual_edit(chat_id, session, "comment", "Напишите новый комментарий к заказу. Если комментарий не нужен, напишите 'без комментария'.")
 
         if session.awaiting_confirmation and self._looks_like_freeform_edit(normalized):
+            # Freeform edit text implies user wants to return to draft editing.
             session.awaiting_confirmation = False
             session.checkout_step = "draft"
             self._session_store.save(chat_id, session)
@@ -235,8 +220,10 @@ class OrderService:
 
         pending_choice_reply = self._try_apply_draft_pending_choice(chat_id, session, stripped)
         if pending_choice_reply is not None:
+            # Local choice handling succeeded, skip remote NLP call.
             return pending_choice_reply
 
+        # Main NLP call with graceful fallback for first-message order starts.
         parse_state = self._prepare_state_for_parse(session)
         try:
             parse_result = self._nlp_client.parse(stripped, parse_state)
@@ -255,8 +242,10 @@ class OrderService:
 
         checked_result, unknown_items = self._apply_catalog_check(parse_result)
         if session.checkout_step == "draft":
+            # In draft we only keep product-related missing fields.
             checked_result = self._adapt_parse_result_for_draft(checked_result)
 
+        # Guard against accidental auto-add when user text does not name a catalog pizza.
         if session.checkout_step == "draft" and self._has_suspicious_auto_addition(
             stripped,
             session.state,
@@ -284,6 +273,7 @@ class OrderService:
         session.state = checked_result.state
 
         if unknown_items:
+            # Unknown item names require explicit user correction.
             session.awaiting_confirmation = False
             self._session_store.save(chat_id, session)
             logger.warning("Catalog rejected items chat_id=%s items=%s", chat_id, ", ".join(unknown_items))
@@ -300,25 +290,18 @@ class OrderService:
                 reply_keyboard=self._keyboard_for_session(session, checked_result),
             )
 
+        # In checkout mode every successful parse advances required scalar fields.
         return self._handle_checkout_progress(chat_id, session, checked_result)
 
     def _apply_catalog_check(self, parse_result: ParseResponse) -> tuple[ParseResponse, list[str]]:
-        """
-        Execute apply catalog check.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Normalize parsed items against catalog and adjust follow-up prompt."""
         checked = self._catalog_verifier.check_state(parse_result.state)
         updated = parse_result.model_copy(deep=True)
         updated.state = checked.state
         updated.entities = checked.state.entities
         updated.missing = checked.state.missing
         updated.choices = checked.state.pending_choice
+        # Recompute question text because item indexes may change after catalog cleanup.
         updated.message = self._normalize_message_after_catalog(updated)
         if checked.unknown_items:
             updated.action = "ASK"
@@ -332,44 +315,30 @@ class OrderService:
         return updated, checked.unknown_items
 
     def _prepare_state_for_parse(self, session) -> State:
-        """
-        Execute prepare state for parse.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - session: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Restrict NLP context to field expected on current checkout step."""
         prepared = session.state.model_copy(deep=True)
         expected_field = self._current_checkout_field(session)
         if expected_field == "delivery_type":
+            # During checkout we constrain model to exact current scalar question.
             prepared.pending_choice = Choice(field="delivery_type", options=["Доставка", "Самовывоз"])
             prepared.missing = ["delivery_type"]
         elif expected_field in {"address", "phone", "time"}:
+            # For free-text scalar steps avoid item-level pending choices.
             prepared.pending_choice = None
             prepared.missing = [expected_field]
         return prepared
 
     def _adapt_parse_result_for_draft(self, parse_result: ParseResponse) -> ParseResponse:
-        """
-        Execute adapt parse result for draft.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """In draft mode ask only product-related follow-ups (no checkout scalar fields)."""
         updated = parse_result.model_copy(deep=True)
         if updated.choices and updated.choices.field in {"size_cm", "variant", "modifiers"}:
+            # Keep product refinement questions in draft mode.
             updated.action = "ASK"
             updated.missing = [updated.choices.field]
             updated.state.missing = updated.missing
             return updated
 
+        # Clear scalar checkout artifacts while user is still assembling order.
         updated.choices = None
         updated.state.pending_choice = None
         updated.missing = []
@@ -384,16 +353,7 @@ class OrderService:
         return updated
 
     def _build_draft_reply(self, parse_result: ParseResponse) -> str:
-        """
-        Execute build draft reply.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # If parser requested a product choice, show progress + question.
         if parse_result.choices and parse_result.choices.field in {"size_cm", "variant", "modifiers"}:
             return self._build_progress_message(parse_result.message, parse_result.entities)
 
@@ -411,18 +371,7 @@ class OrderService:
         )
 
     def _try_apply_draft_pending_choice(self, chat_id: int, session, text: str) -> BotReply | None:
-        """
-        Execute try apply draft pending choice.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - session: input consumed by this function while processing the current request.
-        - text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Apply size/variant/modifier reply locally before calling NLP again."""
         if session.checkout_step != "draft" or session.state.pending_choice is None:
             return None
 
@@ -439,6 +388,7 @@ class OrderService:
                 has_edit_intent = self._looks_like_freeform_edit(normalized_text)
                 mentions_catalog_pizza = bool(self._catalog_verifier.extract_pizzas_from_text(text))
                 if has_edit_intent or mentions_catalog_pizza:
+                    # If user wrote new edit request, let full NLP branch handle it.
                     return None
                 pending_result = ParseResponse(
                     action="ASK",
@@ -460,6 +410,7 @@ class OrderService:
             return None
 
         updated_state = session.state.model_copy(deep=True)
+        # Mutate selected value in cloned state, then continue local flow.
         self._apply_pending_choice_value(updated_state, pending_choice, selected)
         updated_state.pending_choice = None
         updated_state.missing = [field for field in updated_state.missing if field != pending_choice.field]
@@ -486,21 +437,11 @@ class OrderService:
         )
 
     def _match_choice_option(self, text: str, options: list[str]) -> str | None:
-        """
-        Execute match choice option.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-        - options: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         stripped = text.strip()
         if not stripped:
             return None
 
+        # Numeric reply means "option index" from keyboard list.
         if stripped.isdigit():
             index = int(stripped) - 1
             if 0 <= index < len(options):
@@ -508,42 +449,36 @@ class OrderService:
 
         normalized = self._normalize_choice_text(stripped)
         for option in options:
+            # Exact normalized option text match.
             if normalized == self._normalize_choice_text(option):
                 return option
 
         digits = re.findall(r"\d+", stripped)
         if digits:
             for option in options:
+                # Numeric equivalence match ("30" == "30 см").
                 if re.findall(r"\d+", option) == digits:
                     return option
 
         if self._is_skip_choice_text(stripped):
             for option in options:
+                # Map generic skip phrase to concrete skip option label.
                 if self._is_skip_choice_text(option):
                     return option
         return None
 
     def _apply_pending_choice_value(self, state: State, choice: Choice, selected: str) -> None:
-        """
-        Execute apply pending choice value.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-        - choice: input consumed by this function while processing the current request.
-        - selected: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Only item-level refinement choices are handled here.
         if choice.field not in {"size_cm", "variant", "modifiers"} or not state.entities.items:
             return
 
+        # Clamp index defensively in case source state changed.
         item_index = choice.item_index if choice.item_index is not None else len(state.entities.items) - 1
         item_index = max(0, min(item_index, len(state.entities.items) - 1))
         item = state.entities.items[item_index]
 
         if choice.field == "size_cm":
+            # Choice label may include units; keep only integer centimeters.
             digits = re.findall(r"\d+", selected)
             if digits:
                 item.size_cm = int(digits[0])
@@ -554,22 +489,14 @@ class OrderService:
             return
 
         if self._is_skip_choice_text(selected):
+            # Explicit skip keeps modifiers unchanged.
             return
         if not any(self._normalize_choice_text(existing) == self._normalize_choice_text(selected) for existing in item.modifiers):
             item.modifiers.append(selected)
 
     def _advance_draft_choice_state(self, state: State) -> State:
-        """
-        Execute advance draft choice state.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         updated = state.model_copy(deep=True)
+        # Merge identical sized items before searching for next missing size.
         updated.entities.items = self._consolidate_sized_items(updated.entities.items)
         if updated.pending_choice is not None:
             return updated
@@ -577,6 +504,7 @@ class OrderService:
         for index, item in enumerate(updated.entities.items):
             if item.size_cm is not None:
                 continue
+            # Ask size for the first item that still has no explicit size.
             updated.pending_choice = Choice(
                 field="size_cm",
                 options=["25 см", "30 см", "35 см"],
@@ -589,21 +517,12 @@ class OrderService:
         return updated
 
     def _consolidate_sized_items(self, items: list[Item]) -> list[Item]:
-        """
-        Execute consolidate sized items.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - items: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         consolidated: list[Item] = []
         by_key: dict[tuple[str, int, str | None, tuple[str, ...]], int] = {}
         for item in items:
             candidate = item.model_copy(deep=True)
             candidate.qty = max(candidate.qty, 1)
+            # Unsized entries are kept separate until user picks size.
             if candidate.size_cm is None:
                 consolidated.append(candidate)
                 continue
@@ -616,59 +535,32 @@ class OrderService:
             )
             existing_index = by_key.get(key)
             if existing_index is None:
+                # First occurrence of this exact config.
                 by_key[key] = len(consolidated)
                 consolidated.append(candidate)
                 continue
+            # Same config already exists, accumulate quantity.
             consolidated[existing_index].qty += candidate.qty
         return consolidated
 
     def _keyboard_for_session(self, session, parse_result: ParseResponse | None = None) -> list[list[str]] | None:
-        """
-        Execute keyboard for session.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - session: input consumed by this function while processing the current request.
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Confirmation mode always uses full action keyboard.
         if session.checkout_step == "confirm":
             return POST_READY_KEYBOARD
         if session.checkout_step == "draft":
             if parse_result and parse_result.choices and parse_result.choices.field in {"size_cm", "variant", "modifiers"}:
+                # Show one-option-per-row when explicit choice is requested.
                 return [[option] for option in parse_result.choices.options] + RESET_KEYBOARD
             return self._draft_keyboard(session.state)
         return self._checkout_keyboard(session.checkout_step, parse_result)
 
     def _draft_keyboard(self, state: State) -> list[list[str]]:
-        """
-        Execute draft keyboard.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if state.entities.items:
             return DRAFT_KEYBOARD
         return RESET_KEYBOARD
 
     def _begin_checkout(self, chat_id: int, session) -> BotReply:
-        """
-        Execute begin checkout.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - session: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Switch from draft editing to mandatory checkout fields collection."""
         if not session.state.entities.items:
             return BotReply(
                 self._section("Сначала выберем пиццу", "Напишите, какую пиццу хотите заказать."),
@@ -676,6 +568,7 @@ class OrderService:
             )
 
         if session.state.pending_choice and session.state.pending_choice.field in {"size_cm", "variant", "modifiers"}:
+            # Prevent checkout jump while item refinement is still unresolved.
             return BotReply(
                 self._build_progress_message("Сначала закончим с текущей пиццей.", session.state.entities),
                 reply_keyboard=self._keyboard_for_session(session, ParseResponse(
@@ -696,16 +589,6 @@ class OrderService:
         return self._reply_for_checkout_step(session)
 
     def _reply_for_checkout_step(self, session) -> BotReply:
-        """
-        Execute reply for checkout step.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - session: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if session.checkout_step == "confirm":
             return BotReply(
                 self._section(
@@ -724,18 +607,7 @@ class OrderService:
         )
 
     def _handle_checkout_progress(self, chat_id: int, session, parse_result: ParseResponse) -> BotReply:
-        """
-        Execute handle checkout progress.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - session: input consumed by this function while processing the current request.
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Persist checkout progress and render next checkout step prompt."""
         previous_step = session.checkout_step
         session.state = parse_result.state
         session.checkout_step = self._determine_next_checkout_step(session.state)
@@ -744,6 +616,7 @@ class OrderService:
         logger.debug("Checkout progress chat_id=%s next_step=%s", chat_id, session.checkout_step)
 
         if session.checkout_step == previous_step and parse_result.message:
+            # Stay on same step but show parser clarification.
             return BotReply(
                 self._section(
                     "Оформление заказа",
@@ -755,16 +628,7 @@ class OrderService:
         return self._reply_for_checkout_step(session)
 
     def _determine_next_checkout_step(self, state: State) -> str:
-        """
-        Execute determine next checkout step.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Fixed order: delivery_type -> address(if needed) -> phone -> time -> confirm.
         entities = state.entities
         if not entities.delivery_type:
             return "delivery_type"
@@ -777,32 +641,13 @@ class OrderService:
         return "confirm"
 
     def _current_checkout_field(self, session) -> str | None:
-        """
-        Execute current checkout field.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - session: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if session.checkout_step in {"delivery_type", "address", "phone", "time"}:
             return session.checkout_step
         return None
 
     def _go_checkout_back(self, chat_id: int, session) -> BotReply:
-        """
-        Execute go checkout back.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - session: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Move one step back in checkout or return from checkout to draft."""
+        # Reverse traversal of checkout graph with delivery/pickup branching.
         if session.checkout_step == "confirm":
             session.checkout_step = "time"
         elif session.checkout_step == "time":
@@ -832,17 +677,6 @@ class OrderService:
         return self._reply_for_checkout_step(session)
 
     def _checkout_prompt(self, step: str, state: State) -> str:
-        """
-        Execute checkout prompt.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - step: input consumed by this function while processing the current request.
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if step == "delivery_type":
             return "Как получить заказ?"
         if step == "address":
@@ -854,36 +688,16 @@ class OrderService:
         return "Проверьте заказ."
 
     def _checkout_keyboard(self, step: str, parse_result: ParseResponse | None = None) -> list[list[str]]:
-        """
-        Execute checkout keyboard.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - step: input consumed by this function while processing the current request.
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         rows: list[list[str]] = []
         if step == "delivery_type":
+            # Delivery method is the only scalar step with fixed buttons.
             rows.append(["Доставка", "Самовывоз"])
         rows.append(["Хочу еще заказать"])
         rows.append(["Назад", "Сбросить заказ"])
         return rows
 
     def _build_unknown_items_message(self, unknown_items: list[str], state: State) -> str:
-        """
-        Execute build unknown items message.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - unknown_items: input consumed by this function while processing the current request.
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Escape user-provided names before embedding into HTML reply.
         names = ", ".join(html.escape(value) for value in unknown_items)
         preserved = ""
         if state.entities.items:
@@ -899,83 +713,32 @@ class OrderService:
         return header + self._append_draft_if_needed(state.entities)
 
     def _build_reply_keyboard(self, parse_result: ParseResponse) -> list[list[str]] | None:
-        """
-        Execute build reply keyboard.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if parse_result.choices and parse_result.choices.options:
             return [[option] for option in parse_result.choices.options] + RESET_KEYBOARD
         return RESET_KEYBOARD
 
     def _build_progress_message(self, message: str, entities: Entities) -> str:
-        """
-        Execute build progress message.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - message: input consumed by this function while processing the current request.
-        - entities: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         safe_message = html.escape(message)
         if not self._has_any_draft(entities):
             return self._section("Уточню один момент", safe_message)
         return self._format_draft(entities) + "\n\n" + safe_message
 
     def _append_draft_if_needed(self, entities: Entities) -> str:
-        """
-        Execute append draft if needed.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - entities: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if not self._has_any_draft(entities):
             return ""
         return f"\n\n{self._format_draft(entities)}"
 
     def _format_draft(self, entities: Entities) -> str:
-        """
-        Execute format draft.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - entities: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         return self._section("Сейчас в заказе", self._format_order_summary(entities, include_heading=False))
 
     def _format_order_summary(self, entities: Entities, include_heading: bool = True) -> str:
-        """
-        Execute format order summary.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - entities: input consumed by this function while processing the current request.
-        - include_heading: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         lines: list[str] = []
         if include_heading:
             lines.append("<b>Состав:</b>")
 
         if entities.items:
             for index, item in enumerate(entities.items, start=1):
+                # 1-based numbering is more natural for end users.
                 lines.append(f"{index}. {self._format_item(item)}")
         else:
             lines.append("Пиццы пока не выбраны")
@@ -994,16 +757,7 @@ class OrderService:
         return "\n".join(lines)
 
     def _has_non_item_details(self, entities: Entities) -> bool:
-        """
-        Execute has non item details.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - entities: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # True when any checkout scalar field is already present.
         return any(
             value is not None and value != ""
             for value in [
@@ -1016,16 +770,6 @@ class OrderService:
         )
 
     def _has_any_draft(self, entities: Entities) -> bool:
-        """
-        Execute has any draft.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - entities: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         return bool(entities.items) or self._has_non_item_details(entities)
 
     def _begin_manual_edit(
@@ -1035,19 +779,7 @@ class OrderService:
         field: str,
         prompt: str,
     ) -> BotReply:
-        """
-        Execute begin manual edit.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - session: input consumed by this function while processing the current request.
-        - field: input consumed by this function while processing the current request.
-        - prompt: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Manual edit mode stores target field and waits for next user message.
         session.editing_field = field
         session.awaiting_confirmation = False
         session.checkout_step = field
@@ -1056,18 +788,7 @@ class OrderService:
         return BotReply(prompt, reply_keyboard=[["Назад", "Сбросить заказ"]])
 
     def _handle_manual_edit(self, chat_id: int, session, text: str) -> BotReply:
-        """
-        Execute handle manual edit.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - session: input consumed by this function while processing the current request.
-        - text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Apply direct edit from confirmation screen and return to final check."""
         field = session.editing_field
         session.editing_field = None
         logger.debug("Applying manual edit chat_id=%s field=%s", chat_id, field)
@@ -1080,6 +801,7 @@ class OrderService:
             session.state.entities.comment = None if text.lower() == "без комментария" else text
         elif field == "time":
             try:
+                # Time parsing is delegated to NLP service even in manual mode.
                 parse_result = self._nlp_client.parse(text, State())
             except NLPClientError:
                 session.editing_field = field
@@ -1105,16 +827,7 @@ class OrderService:
         )
 
     def _format_item(self, item: Item) -> str:
-        """
-        Execute format item.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - item: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Compose one human-readable line for order summary.
         parts = [f"{item.qty} x {html.escape(item.name)}"]
         if item.size_cm:
             parts.append(f"{item.size_cm} см")
@@ -1125,16 +838,6 @@ class OrderService:
         return ", ".join(parts)
 
     def _format_time(self, time_info: TimeInfo) -> str:
-        """
-        Execute format time.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - time_info: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if time_info.type == "asap":
             return "как можно скорее"
         if time_info.type == "in_minutes":
@@ -1144,16 +847,6 @@ class OrderService:
         return "не указано"
 
     def _format_delivery_type(self, delivery_type: str) -> str:
-        """
-        Execute format delivery type.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - delivery_type: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         normalized = delivery_type.strip().lower()
         if normalized == "delivery":
             return "доставка"
@@ -1162,46 +855,15 @@ class OrderService:
         return delivery_type
 
     def _preview_text(self, text: str, limit: int = 80) -> str:
-        """
-        Execute preview text.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-        - limit: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         compact = " ".join(text.split())
         if len(compact) <= limit:
             return compact
         return compact[: limit - 3] + "..."
 
     def _normalize_choice_text(self, value: str) -> str:
-        """
-        Execute normalize choice text.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - value: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         return " ".join(value.strip().lower().split())
 
     def _is_skip_choice_text(self, value: str) -> bool:
-        """
-        Execute is skip choice text.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - value: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         return self._normalize_choice_text(value) in {
             "нет",
             "не надо",
@@ -1217,16 +879,7 @@ class OrderService:
         }
 
     def _is_choice_only_text(self, text: str) -> bool:
-        """
-        Execute is choice only text.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Heuristic: reply is probably a choice answer, not new free-form instruction.
         stripped = text.strip()
         if not stripped:
             return True
@@ -1239,52 +892,22 @@ class OrderService:
         return False
 
     def _section(self, title: str, body: str) -> str:
-        """
-        Execute section.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - title: input consumed by this function while processing the current request.
-        - body: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         return f"<b>{html.escape(title)}</b>\n{body}"
 
     def _looks_like_freeform_edit(self, normalized_text: str) -> bool:
-        """
-        Execute looks like freeform edit.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - normalized_text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         return any(marker in normalized_text for marker in FREEFORM_EDIT_MARKERS)
 
     def _has_suspicious_auto_addition(self, text: str, before: State, after: State) -> bool:
-        """
-        Execute has suspicious auto addition.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-        - before: input consumed by this function while processing the current request.
-        - after: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Detect likely LLM hallucination when quantity grows without clear add intent."""
         before_qty_by_name: Counter[str] = Counter()
         for item in before.entities.items:
+            # Build normalized quantity map for "before" state.
             name_key = self._normalize_choice_text(item.name)
             before_qty_by_name[name_key] += max(item.qty, 1)
 
         after_qty_by_name: Counter[str] = Counter()
         for item in after.entities.items:
+            # Build normalized quantity map for "after" state.
             name_key = self._normalize_choice_text(item.name)
             after_qty_by_name[name_key] += max(item.qty, 1)
 
@@ -1307,17 +930,8 @@ class OrderService:
         return True
 
     def _normalize_message_after_catalog(self, parse_result: ParseResponse) -> str:
-        """
-        Execute normalize message after catalog.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - parse_result: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         choice = parse_result.choices
+        # Choice without target item keeps original message untouched.
         if choice is None or choice.item_index is None:
             return parse_result.message
         if choice.item_index < 0 or choice.item_index >= len(parse_result.entities.items):
@@ -1334,18 +948,8 @@ class OrderService:
         return parse_result.message
 
     def _try_start_order_without_nlp(self, chat_id: int, session, text: str) -> BotReply | None:
-        """
-        Execute try start order without nlp.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - chat_id: input consumed by this function while processing the current request.
-        - session: input consumed by this function while processing the current request.
-        - text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Best-effort order bootstrap from catalog mentions when NLP is unavailable."""
+        # Fallback is allowed only for empty session to avoid corrupting existing order.
         if session.state.entities.items or self._has_non_item_details(session.state.entities):
             return None
 
@@ -1354,6 +958,7 @@ class OrderService:
             return None
 
         recovered_state = State(
+            # If text contains exactly one supported size, apply it to all recovered items.
             entities=Entities(items=[Item(name=name, qty=1, size_cm=self._extract_single_size(text)) for name in pizza_names]),
             missing=[],
             pending_choice=None,
@@ -1362,6 +967,7 @@ class OrderService:
         if all(item.size_cm is not None for item in recovered_state.entities.items):
             message = ""
         else:
+            # Ask size for first item that still has unknown size.
             item_index = next(
                 index for index, item in enumerate(recovered_state.entities.items) if item.size_cm is None
             )
@@ -1392,16 +998,7 @@ class OrderService:
         )
 
     def _extract_single_size(self, text: str) -> int | None:
-        """
-        Execute extract single size.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Accept exactly one explicit supported size in message.
         matches = re.findall(r"\b(\d{2})\s*(?:см|cm|сантиметр(?:а|ов)?|сантиметров?)?\b", text.lower())
         if len(matches) != 1:
             return None
@@ -1411,31 +1008,11 @@ class OrderService:
         return None
 
     def _nlp_timeout_title(self, state: State) -> str:
-        """
-        Execute nlp timeout title.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if state.entities.items or self._has_non_item_details(state.entities):
             return "Не успел обработать изменение"
         return "Не успел обработать заказ"
 
     def _nlp_timeout_body(self, state: State) -> str:
-        """
-        Execute nlp timeout body.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         if state.entities.items or self._has_non_item_details(state.entities):
             return (
                 "Попробуйте повторить фразу чуть короче.\n\n"

@@ -1,7 +1,4 @@
-"""
-This module implements schemas logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
-"""
+"""Pydantic models exchanged between bot, NLP service and session store."""
 
 from __future__ import annotations
 
@@ -11,10 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class Item(BaseModel):
-    """
-    Represents Item.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """One pizza line in the order."""
     name: str
     qty: int = Field(default=1, ge=1)
     size_cm: int | None = Field(default=None, ge=1)
@@ -23,19 +17,13 @@ class Item(BaseModel):
 
 
 class TimeInfo(BaseModel):
-    """
-    Represents TimeInfo.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Normalized time request for delivery/pickup."""
     type: Literal["asap", "by_time", "in_minutes"] | None = None
     value: str | int | None = None
 
 
 class Entities(BaseModel):
-    """
-    Represents Entities.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Structured order payload extracted from user dialogue."""
     items: list[Item] = Field(default_factory=list)
     delivery_type: str | None = None
     address: str | None = None
@@ -45,10 +33,7 @@ class Entities(BaseModel):
 
 
 class Choice(BaseModel):
-    """
-    Represents Choice.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Question that must be answered before order can proceed."""
     field: str
     options: list[str] = Field(default_factory=list)
     item_index: int | None = None
@@ -56,20 +41,14 @@ class Choice(BaseModel):
 
 
 class State(BaseModel):
-    """
-    Represents State.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Mutable dialogue state persisted between messages."""
     entities: Entities = Field(default_factory=Entities)
     missing: list[str] = Field(default_factory=list)
     pending_choice: Choice | None = None
 
 
 class ParseResponse(BaseModel):
-    """
-    Represents ParseResponse.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """NLP response consumed by the bot workflow."""
     action: Literal["READY", "ASK"]
     message: str
     entities: Entities

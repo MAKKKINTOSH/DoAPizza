@@ -1,7 +1,4 @@
-"""
-This module implements logging logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
-"""
+"""Logging setup with colored console and rotating file output."""
 
 from __future__ import annotations
 
@@ -15,17 +12,14 @@ DEFAULT_LOG_FILE_PATH = "logs/nlp-service.log"
 
 
 def configure_logging() -> None:
-    """
-    Execute configure logging.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Configure root logger once for API process lifetime."""
     root_logger = logging.getLogger()
+    # Prevent duplicate handlers when app re-imports in dev/hot-reload scenarios.
     if getattr(root_logger, "_nlp_service_configured", False):
         return
 
+    # Console and file levels are split intentionally:
+    # console = operator-friendly signal, file = full diagnostics.
     console_level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
     file_level_name = os.getenv("LOG_FILE_LEVEL", "DEBUG").strip().upper()
     log_file_path = os.getenv("LOG_FILE_PATH", DEFAULT_LOG_FILE_PATH).strip() or DEFAULT_LOG_FILE_PATH
@@ -33,7 +27,9 @@ def configure_logging() -> None:
     console_level = getattr(logging, console_level_name, logging.INFO)
     file_level = getattr(logging, file_level_name, logging.DEBUG)
 
+    # Rebuild handlers from scratch to avoid mixed formatters from previous setup.
     root_logger.handlers.clear()
+    # Root must accept both targets, so use more permissive of the two levels.
     root_logger.setLevel(min(console_level, file_level))
 
     console_handler = logging.StreamHandler()
@@ -46,26 +42,19 @@ def configure_logging() -> None:
     root_logger.addHandler(file_handler)
     root_logger._nlp_service_configured = True  # type: ignore[attr-defined]
 
+    # Keep noisy libraries under control.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 
 
 def _build_file_handler(path_value: str, level: int) -> RotatingFileHandler:
-    """
-    Execute build file handler.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - path_value: input consumed by this function while processing the current request.
-    - level: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Create rotating file handler and ensure target directory exists."""
     log_path = Path(path_value)
+    # Relative path is resolved from current process working directory.
     if not log_path.is_absolute():
         log_path = Path.cwd() / log_path
+    # Create directory once; safe if already exists.
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     handler = RotatingFileHandler(
@@ -85,29 +74,22 @@ def _build_file_handler(path_value: str, level: int) -> RotatingFileHandler:
 
 
 def _build_console_formatter() -> logging.Formatter:
-    """
-    Execute build console formatter.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Prefer uvicorn formatter; fallback to local ANSI formatter."""
     try:
         from uvicorn.logging import DefaultFormatter
 
+        # Uvicorn formatter renders colored levelprefix consistently with ASGI logs.
         return DefaultFormatter(
             fmt="%(levelprefix)s [%(name)s] %(message)s",
             use_colors=True,
         )
     except Exception:
+        # If uvicorn formatter is unavailable, keep readable color output ourselves.
         return _ColorFormatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
 
 
 class _ColorFormatter(logging.Formatter):
-    """
-    Represents ColorFormatter.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """ANSI-colored formatter used when uvicorn formatter is unavailable."""
     COLORS = {
         logging.DEBUG: "\x1b[36m",
         logging.INFO: "\x1b[32m",
@@ -118,21 +100,14 @@ class _ColorFormatter(logging.Formatter):
     RESET = "\x1b[0m"
 
     def format(self, record: logging.LogRecord) -> str:
-        """
-        Execute format.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - record: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Wrap level name with color code and restore original record after formatting."""
         original_levelname = record.levelname
         color = self.COLORS.get(record.levelno)
+        # Mutate record only temporarily; many handlers may share the same object.
         if color:
             record.levelname = f"{color}{record.levelname}{self.RESET}"
         try:
             return super().format(record)
         finally:
+            # Always restore original value to avoid color codes leaking to file logs.
             record.levelname = original_levelname

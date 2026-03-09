@@ -1,7 +1,4 @@
-"""
-This module implements catalog logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
-"""
+"""Catalog verification and fuzzy matching of pizza names."""
 
 from __future__ import annotations
 
@@ -12,49 +9,22 @@ from .schemas import Choice, Item, State
 
 
 def _normalize_name(value: str) -> str:
-    """
-    Execute normalize name.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - value: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    # Canonical form for fuzzy matching: trim, lowercase, map "ё" -> "е", drop punctuation.
     lowered = value.strip().lower().replace("ё", "е")
     return re.sub(r"[^a-zа-я0-9]+", " ", lowered).strip()
 
 
 def _soft_normalize_name(value: str) -> str:
-    """
-    Execute soft normalize name.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - value: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    # Collapse repeated chars ("пееепперони" -> "пеперони") to soften typos.
     normalized = _normalize_name(value)
     return re.sub(r"(.)\1+", r"\1", normalized)
 
 
 def _deduplicate(values: list[str]) -> list[str]:
-    """
-    Execute deduplicate.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - values: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
     seen: set[str] = set()
     result: list[str] = []
     for value in values:
+        # De-duplicate by normalized value while preserving first-seen original spelling.
         normalized = _normalize_name(value)
         if normalized in seen:
             continue
@@ -65,60 +35,40 @@ def _deduplicate(values: list[str]) -> list[str]:
 
 @dataclass(frozen=True)
 class CatalogCheckResult:
-    """
-    Represents CatalogCheckResult.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Result of catalog validation for a parsed dialogue state."""
     state: State
     unknown_items: list[str]
 
 
 class CatalogVerifier:
-    """
-    Represents CatalogVerifier.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Resolve pizza names to canonical catalog values and prune unknown items."""
     def __init__(self, available_pizzas: tuple[str, ...]) -> None:
-        """
-        Execute init.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - available_pizzas: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         self._available_pizzas = available_pizzas
+        # Map normalized catalog token -> canonical menu label shown to users.
         self._normalized_catalog = {_normalize_name(item): item for item in available_pizzas}
+        # Precompute candidate phrase lengths; longer phrases are checked first.
         self._catalog_token_lengths = sorted(
             {len(normalized.split()) for normalized in self._normalized_catalog},
             reverse=True,
         )
 
     def check_state(self, state: State) -> CatalogCheckResult:
-        """
-        Execute check state.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Return state with only known catalog items and remapped pending choices."""
         updated = state.model_copy(deep=True)
         valid_items: list[Item] = []
         index_map: dict[int, int] = {}
         unknown_items: list[str] = []
 
         for old_index, item in enumerate(updated.entities.items):
+            # Resolve parser-provided item name to canonical catalog position.
             canonical_name = self._resolve_catalog_name(item.name)
             if canonical_name is not None:
                 item.name = canonical_name
+                # Remember old->new index map to keep pending choice aligned.
                 index_map[old_index] = len(valid_items)
                 valid_items.append(item)
                 continue
+            # Keep list of rejected names for user-facing clarification.
             unknown_items.append(item.name)
 
         updated.entities.items = valid_items
@@ -127,16 +77,7 @@ class CatalogVerifier:
         return CatalogCheckResult(state=updated, unknown_items=_deduplicate(unknown_items))
 
     def extract_pizzas_from_text(self, text: str) -> list[str]:
-        """
-        Execute extract pizzas from text.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Extract canonical pizza names from free-form text."""
         tokens = _normalize_name(text).split()
         if not tokens:
             return []
@@ -147,6 +88,7 @@ class CatalogVerifier:
             matched_name: str | None = None
             matched_length = 0
             for length in self._catalog_token_lengths:
+                # Skip phrase lengths that overflow current token window.
                 if index + length > len(tokens):
                     continue
                 candidate = " ".join(tokens[index : index + length])
@@ -158,25 +100,18 @@ class CatalogVerifier:
                 break
 
             if matched_name is None:
+                # No match from current token, shift by one.
                 index += 1
                 continue
 
             matches.append(matched_name)
+            # Greedy consume of matched token span.
             index += matched_length
 
         return _deduplicate(matches)
 
     def _resolve_catalog_name(self, item_name: str) -> str | None:
-        """
-        Execute resolve catalog name.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - item_name: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Resolve exact/typoed name to catalog item using adaptive Levenshtein threshold."""
         normalized = _normalize_name(item_name)
         exact = self._normalized_catalog.get(normalized)
         if exact is not None:
@@ -186,6 +121,7 @@ class CatalogVerifier:
         best_match: str | None = None
         best_distance: int | None = None
         for candidate_normalized, candidate_name in self._normalized_catalog.items():
+            # Compare strict and soft variants; choose the closer distance.
             distance = min(
                 _levenshtein_distance(normalized, candidate_normalized),
                 _levenshtein_distance(soft_normalized, _soft_normalize_name(candidate_name)),
@@ -198,25 +134,17 @@ class CatalogVerifier:
             return None
 
         threshold = _catalog_match_threshold(len(soft_normalized))
+        # Adaptive threshold prevents over-matching short noisy words.
         if best_distance <= threshold:
             return best_match
         return None
 
     def _remap_pending_choice(self, choice: Choice | None, index_map: dict[int, int]) -> Choice | None:
-        """
-        Execute remap pending choice.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - choice: input consumed by this function while processing the current request.
-        - index_map: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Choice without item index is scalar question, nothing to remap.
         if choice is None or choice.item_index is None:
             return choice
 
+        # If item was dropped as unknown, pending choice must also be dropped.
         if choice.item_index not in index_map:
             return None
 
@@ -225,17 +153,6 @@ class CatalogVerifier:
         return updated
 
     def _sanitize_missing(self, state: State, unknown_items: list[str]) -> list[str]:
-        """
-        Execute sanitize missing.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - state: input consumed by this function while processing the current request.
-        - unknown_items: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         missing = list(state.missing)
 
         if unknown_items and state.pending_choice is None:
@@ -248,17 +165,7 @@ class CatalogVerifier:
 
 
 def _levenshtein_distance(left: str, right: str) -> int:
-    """
-    Execute levenshtein distance.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - left: input consumed by this function while processing the current request.
-    - right: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Compute Levenshtein edit distance between two strings."""
     if left == right:
         return 0
     if not left:
@@ -268,6 +175,7 @@ def _levenshtein_distance(left: str, right: str) -> int:
 
     previous_row = list(range(len(right) + 1))
     for i, left_char in enumerate(left, start=1):
+        # Dynamic-programming row computes min cost to align prefixes.
         current_row = [i]
         for j, right_char in enumerate(right, start=1):
             insertions = previous_row[j] + 1
@@ -279,16 +187,7 @@ def _levenshtein_distance(left: str, right: str) -> int:
 
 
 def _catalog_match_threshold(length: int) -> int:
-    """
-    Execute catalog match threshold.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - length: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Distance threshold grows with token length to reduce false positives."""
     if length <= 5:
         return 1
     if length <= 9:

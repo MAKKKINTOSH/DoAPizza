@@ -1,6 +1,6 @@
-"""
-This module implements init logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""NLP service package.
+
+Loads `.env` on import so local runs and tests have the same env initialization path.
 """
 
 from .config import load_dotenv_file

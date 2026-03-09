@@ -1,7 +1,4 @@
-"""
-This module implements bot logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
-"""
+"""Aiogram wiring: receives Telegram updates and delegates to `OrderService`."""
 
 from __future__ import annotations
 
@@ -25,13 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_polling() -> None:
-    """
-    Execute run polling.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Construct dependencies from settings and start async polling loop."""
     settings = get_settings()
     logger.info(
         "Starting Telegram bot (aiogram) polling nlp_base_url=%s poll_timeout=%s nlp_timeout=%s catalog_size=%s",
@@ -40,6 +31,7 @@ def run_polling() -> None:
         settings.nlp_request_timeout_seconds,
         len(settings.catalog_pizzas),
     )
+    # Compose all runtime dependencies once at startup.
     order_service = OrderService(
         nlp_client=NLPClient(
             base_url=settings.nlp_service_base_url,
@@ -52,30 +44,14 @@ def run_polling() -> None:
 
 
 async def _run_polling_async(settings: Settings, order_service: OrderService) -> None:
-    """
-    Execute run polling async.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - settings: input consumed by this function while processing the current request.
-    - order_service: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Run dispatcher and route text messages through synchronous order logic."""
     bot = _build_bot(settings)
     dispatcher = Dispatcher()
     request_timeout = max(1, int(settings.http_timeout_seconds))
 
     @dispatcher.message(F.text)
     async def on_text_message(message: Message) -> None:
-        """
-        Execute on text message.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - message: input consumed by this function while processing the current request.
-        """
+        # Aiogram can deliver updates without text payload, ignore them here.
         text = message.text
         if text is None:
             return
@@ -87,10 +63,12 @@ async def _run_polling_async(settings: Settings, order_service: OrderService) ->
             message.message_id,
             _preview_text(text),
         )
+        # OrderService is sync by design; offload to thread to keep event loop responsive.
         reply = await asyncio.to_thread(order_service.handle_message, chat_id, text)
         await _send_reply(bot, chat_id, reply, request_timeout)
 
     try:
+        # Register command hints shown in Telegram client UI.
         await bot.set_my_commands(
             [
                 BotCommand(command="start", description="Начать новый заказ"),
@@ -104,6 +82,7 @@ async def _run_polling_async(settings: Settings, order_service: OrderService) ->
         logger.exception("Failed to register Telegram bot commands")
 
     try:
+        # Process updates sequentially to avoid race conditions in in-memory session store.
         await dispatcher.start_polling(
             bot,
             polling_timeout=settings.telegram_poll_timeout_seconds,
@@ -112,36 +91,20 @@ async def _run_polling_async(settings: Settings, order_service: OrderService) ->
             request_timeout=request_timeout,
         )
     finally:
+        # Ensure underlying HTTP session is always closed on shutdown/errors.
         await bot.session.close()
 
 
 def _build_bot(settings: Settings) -> Bot:
-    """
-    Execute build bot.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - settings: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Create `aiogram.Bot` with custom Telegram API base URL support."""
+    # Custom API base is useful for local proxies or self-hosted Telegram API server.
     api_server = TelegramAPIServer.from_base(settings.telegram_api_base_url)
     session = AiohttpSession(api=api_server)
     return Bot(token=settings.telegram_bot_token, session=session)
 
 
 async def _send_reply(bot: Bot, chat_id: int, reply: BotReply, request_timeout: int) -> None:
-    """
-    Execute send reply.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - bot: input consumed by this function while processing the current request.
-    - chat_id: input consumed by this function while processing the current request.
-    - reply: input consumed by this function while processing the current request.
-    - request_timeout: input consumed by this function while processing the current request.
-    """
+    """Safely send bot message and log failures without crashing polling."""
     try:
         await bot.send_message(
             chat_id=chat_id,
@@ -161,16 +124,7 @@ async def _send_reply(bot: Bot, chat_id: int, reply: BotReply, request_timeout: 
 
 
 def _reply_markup(reply: BotReply) -> ReplyKeyboardMarkup | ReplyKeyboardRemove | None:
-    """
-    Execute reply markup.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - reply: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Build Telegram keyboard payload from service response metadata."""
     if reply.remove_keyboard:
         return ReplyKeyboardRemove(remove_keyboard=True)
 
@@ -178,6 +132,7 @@ def _reply_markup(reply: BotReply) -> ReplyKeyboardMarkup | ReplyKeyboardRemove 
         return None
 
     keyboard_rows = [
+        # Convert string matrix into Telegram button objects.
         [KeyboardButton(text=button_text) for button_text in row]
         for row in reply.reply_keyboard
     ]
@@ -189,17 +144,7 @@ def _reply_markup(reply: BotReply) -> ReplyKeyboardMarkup | ReplyKeyboardRemove 
 
 
 def _preview_text(text: str, limit: int = 80) -> str:
-    """
-    Execute preview text.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - text: input consumed by this function while processing the current request.
-    - limit: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Compact message text for structured logs."""
     compact = " ".join(text.split())
     if len(compact) <= limit:
         return compact

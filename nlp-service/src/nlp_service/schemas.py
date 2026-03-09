@@ -1,7 +1,4 @@
-"""
-This module implements schemas logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
-"""
+"""Schema contracts for NLP parser input/output and intermediate operations."""
 
 from __future__ import annotations
 
@@ -11,10 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class Item(BaseModel):
-    """
-    Represents Item.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """One pizza line item."""
     name: str
     qty: int = Field(default=1, ge=1)
     size_cm: int | None = Field(default=None, ge=1)
@@ -23,19 +17,13 @@ class Item(BaseModel):
 
 
 class TimeInfo(BaseModel):
-    """
-    Represents TimeInfo.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Normalized time expression."""
     type: Literal["asap", "by_time", "in_minutes"] | None = None
     value: str | int | None = None
 
 
 class Entities(BaseModel):
-    """
-    Represents Entities.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Structured order fields extracted from text."""
     items: list[Item] = Field(default_factory=list)
     delivery_type: str | None = None
     address: str | None = None
@@ -45,10 +33,7 @@ class Entities(BaseModel):
 
 
 class Choice(BaseModel):
-    """
-    Represents Choice.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Follow-up question for unresolved field."""
     field: str
     options: list[str] = Field(default_factory=list)
     item_index: int | None = None
@@ -57,56 +42,40 @@ class Choice(BaseModel):
     @field_validator("options", mode="before")
     @classmethod
     def _normalize_options(cls, value: object) -> object:
-        """
-        Execute normalize options.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - value: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Normalize option list to trimmed strings."""
         if value is None:
             return []
+        # If upstream already sent non-list type, let pydantic handle validation error.
         if not isinstance(value, list):
             return value
 
         normalized: list[str] = []
         for option in value:
+            # Drop null options from partial model outputs.
             if option is None:
                 continue
             if isinstance(option, str):
+                # Trim spaces around user-facing option labels.
                 normalized.append(option.strip())
                 continue
+            # Non-string values are stringified to keep schema tolerant.
             normalized.append(str(option))
         return normalized
 
     @field_validator("requested_value", mode="before")
     @classmethod
     def _normalize_requested_value(cls, value: object) -> object:
-        """
-        Execute normalize requested value.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - value: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Normalize requested value to string for stable prompts."""
         if value is None:
             return None
         if isinstance(value, str):
+            # Keep explicit user-provided token but trim noise.
             return value.strip()
         return str(value)
 
 
 class EditOperation(BaseModel):
-    """
-    Represents EditOperation.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Atomic operation to mutate existing item list."""
     op: Literal["add_item", "remove_item", "replace_item", "update_item"]
     item_index: int | None = None
     item: Item | None = None
@@ -120,29 +89,20 @@ class EditOperation(BaseModel):
 
 
 class State(BaseModel):
-    """
-    Represents State.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Conversation state passed between parser calls."""
     entities: Entities = Field(default_factory=Entities)
     missing: list[str] = Field(default_factory=list)
     pending_choice: Choice | None = None
 
 
 class ParseRequest(BaseModel):
-    """
-    Represents ParseRequest.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """HTTP payload for `/v1/parse`."""
     text: str
     state: State | None = None
 
 
 class ParseResponse(BaseModel):
-    """
-    Represents ParseResponse.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Parser response returned to bot."""
     action: Literal["READY", "ASK"]
     message: str
     entities: Entities

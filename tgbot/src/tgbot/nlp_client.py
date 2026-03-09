@@ -1,7 +1,4 @@
-"""
-This module implements nlp client logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
-"""
+"""HTTP client for `/v1/parse` in the NLP service."""
 
 from __future__ import annotations
 
@@ -15,10 +12,7 @@ from .schemas import ParseResponse, State
 
 
 class NLPClientError(RuntimeError):
-    """
-    Represents NLPClientError.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Raised when NLP call fails or response payload is invalid."""
     pass
 
 
@@ -26,60 +20,24 @@ logger = logging.getLogger(__name__)
 
 
 class NLPClientProtocol(Protocol):
-    """
-    Represents NLPClientProtocol.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Minimal parser interface used by `OrderService` (real client or stub)."""
     def parse(self, text: str, state: State | None) -> ParseResponse:
-        """
-        Execute parse.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
         ...
 
 
 class NLPClient:
-    """
-    Represents NLPClient.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Synchronous NLP client used by bot business logic."""
     def __init__(self, base_url: str, timeout_seconds: float) -> None:
-        """
-        Execute init.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - base_url: input consumed by this function while processing the current request.
-        - timeout_seconds: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        # Normalize base URL once to avoid repeating fixups per request.
         self._base_url = _normalize_local_base_url(base_url.rstrip("/"))
         self._timeout_seconds = timeout_seconds
 
     def parse(self, text: str, state: State | None) -> ParseResponse:
-        """
-        Execute parse.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - text: input consumed by this function while processing the current request.
-        - state: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Send text + state snapshot to NLP service and validate response schema."""
         url = f"{self._base_url}/v1/parse"
         payload = {"text": text}
         if state is not None:
+            # Send full state snapshot so parser can apply incremental update.
             payload["state"] = state.model_dump()
         logger.debug(
             "Calling NLP parse text_preview=%r has_state=%s items=%s missing=%s",
@@ -90,6 +48,7 @@ class NLPClient:
         )
 
         try:
+            # `trust_env=False` avoids proxy surprises in local bot->service calls.
             with httpx.Client(timeout=self._timeout_seconds, trust_env=False) as client:
                 response = client.post(url, json=payload)
             response.raise_for_status()
@@ -98,6 +57,7 @@ class NLPClient:
             raise NLPClientError(f"NLP service request failed: {exc}") from exc
 
         try:
+            # Validate server JSON against shared schema contract.
             parsed = ParseResponse.model_validate(response.json())
             logger.debug(
                 "NLP parse completed action=%s items=%s missing=%s has_choice=%s confidence=%.2f",
@@ -114,17 +74,7 @@ class NLPClient:
 
 
 def _preview_text(text: str, limit: int = 80) -> str:
-    """
-    Execute preview text.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - text: input consumed by this function while processing the current request.
-    - limit: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Compact message for logs and truncate long inputs."""
     compact = " ".join(text.split())
     if len(compact) <= limit:
         return compact
@@ -132,17 +82,9 @@ def _preview_text(text: str, limit: int = 80) -> str:
 
 
 def _normalize_local_base_url(base_url: str) -> str:
-    """
-    Execute normalize local base url.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - base_url: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Rewrite non-routable `0.0.0.0` host to `127.0.0.1` for outbound requests."""
     parts = urlsplit(base_url)
+    # `0.0.0.0` is valid bind address but not a routable client destination.
     if parts.hostname != "0.0.0.0":
         return base_url
 

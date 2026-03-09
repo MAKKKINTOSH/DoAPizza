@@ -1,7 +1,4 @@
-"""
-This module implements config logic for the DoAPizza project.
-Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
-"""
+"""Environment loading and strongly-typed bot settings."""
 
 from __future__ import annotations
 
@@ -13,75 +10,59 @@ from pydantic import BaseModel, Field
 
 
 def _default_env_path() -> Path:
-    """
-    Execute default env path.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Return default `.env` location relative to the `tgbot` project root."""
     return Path(__file__).resolve().parents[2] / ".env"
 
 
 def _strip_quotes(value: str) -> str:
-    """
-    Execute strip quotes.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - value: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Remove matching wrapping quotes from an env value."""
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
         return value[1:-1]
     return value
 
 
 def load_dotenv_file(path: Path | None = None) -> None:
-    """
-    Execute load dotenv file.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Parameters:
-    - path: input consumed by this function while processing the current request.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Load key/value pairs from `.env` into `os.environ` without overriding existing vars."""
+    # Explicit path is handy for tests; default path is used in normal startup.
     env_path = path or _default_env_path()
+    # Missing `.env` is valid when env comes from container/orchestrator.
     if not env_path.is_file():
         return
 
+    # Parse file manually to keep behavior identical in every runtime.
     for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
+        # Trim spaces/newlines before checking syntax.
         line = raw_line.strip()
+        # Ignore empty and comment-only rows.
         if not line or line.startswith("#"):
             continue
 
+        # Allow shell format: `export KEY=VALUE`.
         if line.startswith("export "):
             line = line[7:].lstrip()
 
+        # Skip malformed rows without key-value separator.
         if "=" not in line:
             continue
 
+        # Split on first '=' so value may also contain '='.
         key, value = line.split("=", 1)
         key = key.strip()
+        # Empty key after trimming is invalid.
         if not key:
             continue
 
         value = value.strip()
+        # For unquoted values support inline comments after ` #`.
         if value and value[0] not in {"'", '"'} and " #" in value:
             value = value.split(" #", 1)[0].rstrip()
 
+        # Keep already exported vars intact (CLI/CI override file defaults).
         os.environ.setdefault(key, _strip_quotes(value))
 
 
 class Settings(BaseModel):
-    """
-    Represents Settings.
-    This class-level description documents why the type exists and how it should be used by other modules.
-    """
+    """Runtime configuration used by the bot and its external integrations."""
     telegram_bot_token: str = Field(min_length=1)
     telegram_api_base_url: str = "https://api.telegram.org"
     nlp_service_base_url: str = "http://127.0.0.1:8000"
@@ -99,17 +80,9 @@ class Settings(BaseModel):
 
     @classmethod
     def from_env(cls) -> "Settings":
-        """
-        Execute from env.
-        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-        Parameters:
-        - cls: input consumed by this function while processing the current request.
-
-        Returns:
-        - A value derived from the current function logic and its validated inputs.
-        """
+        """Build validated settings from environment variables."""
         raw_catalog = os.getenv("CATALOG_PIZZAS", "")
+        # CATALOG_PIZZAS is comma-separated in env.
         catalog_items = tuple(item.strip() for item in raw_catalog.split(",") if item.strip())
 
         payload = {
@@ -122,17 +95,12 @@ class Settings(BaseModel):
             "log_level": os.getenv("LOG_LEVEL", "INFO").strip().upper(),
         }
         if catalog_items:
+            # Override default catalog only when non-empty custom list was provided.
             payload["catalog_pizzas"] = catalog_items
         return cls.model_validate(payload)
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """
-    Execute get settings.
-    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
-
-    Returns:
-    - A value derived from the current function logic and its validated inputs.
-    """
+    """Return cached settings instance for process lifetime."""
     return Settings.from_env()
