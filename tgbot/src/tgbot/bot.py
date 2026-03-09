@@ -12,6 +12,7 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, KeyboardButton, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 from .catalog import CatalogVerifier
+from .catalog_sync import CatalogSync
 from .config import Settings
 from .config import get_settings
 from .nlp_client import NLPClient
@@ -24,12 +25,23 @@ logger = logging.getLogger(__name__)
 def run_polling() -> None:
     """Construct dependencies from settings and start async polling loop."""
     settings = get_settings()
+    catalog_verifier = CatalogVerifier(settings.catalog_pizzas)
+    catalog_sync = CatalogSync(
+        api_url=settings.catalog_api_url,
+        refresh_interval_seconds=settings.catalog_refresh_interval_seconds,
+        http_timeout_seconds=settings.catalog_http_timeout_seconds,
+        fallback_pizzas=settings.catalog_pizzas,
+        on_update=lambda snapshot: catalog_verifier.update_catalog(snapshot.pizza_names),
+    )
+    catalog_sync.start()
     logger.info(
-        "Starting Telegram bot (aiogram) polling nlp_base_url=%s poll_timeout=%s nlp_timeout=%s catalog_size=%s",
+        "Starting Telegram bot (aiogram) polling nlp_base_url=%s poll_timeout=%s nlp_timeout=%s catalog_size=%s catalog_api_url=%s catalog_refresh=%s",
         settings.nlp_service_base_url,
         settings.telegram_poll_timeout_seconds,
         settings.nlp_request_timeout_seconds,
         len(settings.catalog_pizzas),
+        settings.catalog_api_url,
+        settings.catalog_refresh_interval_seconds,
     )
     # Compose all runtime dependencies once at startup.
     order_service = OrderService(
@@ -38,9 +50,12 @@ def run_polling() -> None:
             timeout_seconds=settings.nlp_request_timeout_seconds,
         ),
         session_store=InMemorySessionStore(),
-        catalog_verifier=CatalogVerifier(settings.catalog_pizzas),
+        catalog_verifier=catalog_verifier,
     )
-    asyncio.run(_run_polling_async(settings, order_service))
+    try:
+        asyncio.run(_run_polling_async(settings, order_service))
+    finally:
+        catalog_sync.stop()
 
 
 async def _run_polling_async(settings: Settings, order_service: OrderService) -> None:
@@ -72,6 +87,7 @@ async def _run_polling_async(settings: Settings, order_service: OrderService) ->
         await bot.set_my_commands(
             [
                 BotCommand(command="start", description="Начать новый заказ"),
+                BotCommand(command="menu", description="Показать меню пицц"),
                 BotCommand(command="reset", description="Сбросить текущий заказ"),
                 BotCommand(command="help", description="Показать подсказку"),
             ],

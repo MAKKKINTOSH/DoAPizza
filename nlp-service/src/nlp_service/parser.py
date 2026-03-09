@@ -15,12 +15,12 @@ from typing import Literal
 
 import httpx
 
+from .catalog_runtime import catalog_runtime
 from .llm import LLMClient, LLMError
 from .schemas import Choice, EditOperation, Entities, Item, ParseResponse, State, TimeInfo
 from .state_machine import apply_pending_choice, is_choice_only, is_exact_choice_reply, merge_entities
 
 LLM_CLIENT = LLMClient()
-DEFAULT_CATALOG_PIZZAS = ("Маргарита", "Пепперони", "Четыре сыра", "Гавайская", "Диабло")
 
 
 def parse_text(text: str, state: State | None) -> ParseResponse:
@@ -448,10 +448,19 @@ def _consolidate_line_items(items: list[Item]) -> list[Item]:
 __all__ = ["parse_text", "LLMError"]
 
 
-SIZE_OPTIONS = ["25 см", "30 см", "35 см"]
 DELIVERY_TYPE_OPTIONS = ["Доставка", "Самовывоз"]
-ALLOWED_SIZE_CM = [25, 30, 35]
 IntentKind = Literal["add_item", "edit_existing", "remove_or_replace", "choice_reply", "checkout_scalar", "unknown"]
+
+
+def _allowed_size_cm() -> list[int]:
+    snapshot = catalog_runtime.get_snapshot()
+    if snapshot.sizes_cm:
+        return list(snapshot.sizes_cm)
+    return [25, 30, 35]
+
+
+def _size_options() -> list[str]:
+    return [f"{value} см" for value in _allowed_size_cm()]
 
 
 def _enforce_required_order_flow(state: State) -> State:
@@ -481,7 +490,7 @@ def _enforce_required_order_flow(state: State) -> State:
     for index, item in enumerate(updated.entities.items):
         # Force explicit size for every item before moving to checkout scalars.
         if item.size_cm is None:
-            updated.pending_choice = Choice(field="size_cm", options=SIZE_OPTIONS, item_index=index)
+            updated.pending_choice = Choice(field="size_cm", options=_size_options(), item_index=index)
             updated.missing = _ensure_field_in_missing(updated.missing, "size_cm")
             return updated
 
@@ -521,7 +530,7 @@ def _normalize_pending_choice(choice: Choice | None) -> Choice | None:
     normalized = choice.model_copy(deep=True)
     # Backfill options when model set only field name.
     if normalized.field == "size_cm" and not normalized.options:
-        normalized.options = list(SIZE_OPTIONS)
+        normalized.options = _size_options()
     if normalized.field == "delivery_type" and not normalized.options:
         normalized.options = list(DELIVERY_TYPE_OPTIONS)
     return normalized
@@ -634,9 +643,10 @@ def _choice_message(state: State) -> str:
 
 
 def _build_invalid_size_choice(state: State) -> Choice | None:
+    allowed_sizes = _allowed_size_cm()
     for index, item in enumerate(state.entities.items):
         # Keep valid/missing sizes unchanged.
-        if item.size_cm is None or item.size_cm in ALLOWED_SIZE_CM:
+        if item.size_cm is None or item.size_cm in allowed_sizes:
             continue
 
         # Convert invalid concrete size into explicit follow-up choice.
@@ -654,7 +664,7 @@ def _build_invalid_size_choice(state: State) -> Choice | None:
 
 def _nearest_size_options(value: int) -> list[int]:
     # Rank by distance, then prefer larger option on equal distance.
-    ranked = sorted(ALLOWED_SIZE_CM, key=lambda option: (abs(option - value), -option))
+    ranked = sorted(_allowed_size_cm(), key=lambda option: (abs(option - value), -option))
     first = ranked[0]
     second = ranked[1] if len(ranked) > 1 else ranked[0]
     pair = sorted({first, second})
@@ -977,10 +987,7 @@ def _extract_catalog_pizzas_from_text(text: str) -> list[str]:
 
 
 def _catalog_pizzas() -> tuple[str, ...]:
-    raw_catalog = os.getenv("CATALOG_PIZZAS", "")
-    # Env may override default catalog for tests or deployments.
-    catalog = tuple(item.strip() for item in raw_catalog.split(",") if item.strip())
-    return catalog or DEFAULT_CATALOG_PIZZAS
+    return catalog_runtime.get_snapshot().pizza_names
 
 
 def _resolve_catalog_name(item_name: str, normalized_catalog: dict[str, str]) -> str | None:

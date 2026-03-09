@@ -6,6 +6,7 @@ Detailed docstrings are intentionally verbose so each code block is easier to ex
 from fastapi.testclient import TestClient
 
 from nlp_service.app import app
+from nlp_service.catalog_runtime import CatalogSnapshot, catalog_runtime
 from nlp_service.llm import LLMClient, LLMResult
 from nlp_service.schemas import Choice, EditOperation, Entities, Item, State, TimeInfo
 
@@ -86,6 +87,17 @@ def test_llm_prompt_prioritizes_add_item_intent() -> None:
     assert "Intent priority rules are strict" in prompt
     assert "never convert an add-pizza request into replace_item" in prompt
     assert "phrases like 'еще маргариту'" in prompt
+
+
+def test_llm_prompt_uses_runtime_catalog_snapshot() -> None:
+    previous = catalog_runtime.get_snapshot()
+    catalog_runtime.update_snapshot(CatalogSnapshot(pizza_names=("Пицца Тест",), sizes_cm=(25, 30, 35), source="api"))
+    try:
+        prompt = LLMClient()._user_prompt("хочу пиццу", State())
+    finally:
+        catalog_runtime.update_snapshot(previous)
+
+    assert "Pizza catalog: Пицца Тест" in prompt
 
 
 def test_llm_auto_falls_back_to_user_only_on_system_rejection(monkeypatch) -> None:
@@ -322,6 +334,36 @@ def test_parse_skip_modifier_choice_without_llm(monkeypatch) -> None:
     assert data["action"] == "READY"
     assert data["entities"]["items"][0]["modifiers"] == []
     assert data["choices"] is None
+
+
+def test_parser_uses_runtime_catalog_snapshot_for_name_extraction() -> None:
+    import nlp_service.parser as parser
+
+    previous = catalog_runtime.get_snapshot()
+    catalog_runtime.update_snapshot(CatalogSnapshot(pizza_names=("Римская",), sizes_cm=(25, 30, 35), source="api"))
+    try:
+        extracted = parser._extract_catalog_pizzas_from_text("хочу римская")
+    finally:
+        catalog_runtime.update_snapshot(previous)
+
+    assert extracted == ["Римская"]
+
+
+def test_parser_uses_runtime_sizes_for_pending_choice() -> None:
+    import nlp_service.parser as parser
+
+    previous = catalog_runtime.get_snapshot()
+    catalog_runtime.update_snapshot(CatalogSnapshot(pizza_names=("Маргарита",), sizes_cm=(20, 40), source="api"))
+    try:
+        updated = parser._enforce_required_order_flow(
+            State(entities=Entities(items=[Item(name="Маргарита", qty=1)]))
+        )
+    finally:
+        catalog_runtime.update_snapshot(previous)
+
+    assert updated.pending_choice is not None
+    assert updated.pending_choice.field == "size_cm"
+    assert updated.pending_choice.options == ["20 см", "40 см"]
 
 
 def test_parse_invalid_size_choice_without_llm_does_not_add_items(monkeypatch) -> None:

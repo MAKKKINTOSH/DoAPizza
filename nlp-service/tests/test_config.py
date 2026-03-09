@@ -25,6 +25,9 @@ def test_load_dotenv_file(monkeypatch) -> None:
     monkeypatch.delenv("PORT", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("CATALOG_PIZZAS", raising=False)
+    monkeypatch.delenv("CATALOG_SIZE_CM", raising=False)
+    monkeypatch.delenv("CATALOG_API_URL", raising=False)
     monkeypatch.delenv("DELIVERY_API_BASE_URL", raising=False)
     monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "99")
 
@@ -33,5 +36,8 @@ def test_load_dotenv_file(monkeypatch) -> None:
     assert os.environ["PORT"] == "8000"
     assert os.environ["LLM_MODEL"] == "mistralai/mistral-small-3.1-24b-instruct:free"
     assert os.environ["LLM_BASE_URL"] == "https://openrouter.ai/api/v1"
+    assert os.environ["CATALOG_PIZZAS"] == "Маргарита,Пепперони,Четыре сыра,Гавайская,Мясная,Карбонара"
+    assert os.environ["CATALOG_SIZE_CM"] == "25,30,35"
+    assert os.environ["CATALOG_API_URL"] == "http://127.0.0.1:8000/api/restaurant/variants/"
     assert os.environ["DELIVERY_API_BASE_URL"] == ""
     assert os.environ["LLM_TIMEOUT_SECONDS"] == "99"

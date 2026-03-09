@@ -33,6 +33,13 @@ Logging:
 - `LOG_FILE_LEVEL` controls file verbosity. Recommended default: `DEBUG`.
 - `LOG_FILE_PATH` controls the rotating log file path. Default: `logs/nlp-service.log`.
 
+Catalog sync:
+- `CATALOG_API_URL` backend menu endpoint (default: `http://127.0.0.1:8000/api/restaurant/variants/`)
+- `CATALOG_REFRESH_INTERVAL_SECONDS` sync interval in seconds (default: `300`)
+- `CATALOG_HTTP_TIMEOUT_SECONDS` timeout for catalog API requests (default: `5`)
+- `CATALOG_PIZZAS` fallback pizza list for cold start / API outages
+- `CATALOG_SIZE_CM` fallback pizza sizes (default: `25,30,35`)
+
 Optional metadata headers:
 - `LLM_SITE_URL` -> sent as `HTTP-Referer`
 - `LLM_SITE_NAME` -> sent as `X-Title`

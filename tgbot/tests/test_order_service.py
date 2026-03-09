@@ -79,7 +79,7 @@ def build_service(responses: dict[str, ParseResponse]) -> tuple[OrderService, In
         nlp_client=FakeNLPClient(responses),
         session_store=store,
         catalog_verifier=CatalogVerifier(
-            ("Маргарита", "Пепперони", "Четыре сыра", "Гавайская", "Диабло")
+            ("Маргарита", "Пепперони", "Четыре сыра", "Гавайская", "Мясная", "Карбонара")
         ),
     )
     return service, store
@@ -101,7 +101,7 @@ def build_service_with_client(nlp_client) -> tuple[OrderService, InMemorySession
         nlp_client=nlp_client,
         session_store=store,
         catalog_verifier=CatalogVerifier(
-            ("Маргарита", "Пепперони", "Четыре сыра", "Гавайская", "Диабло")
+            ("Маргарита", "Пепперони", "Четыре сыра", "Гавайская", "Мясная", "Карбонара")
         ),
     )
     return service, store
@@ -122,6 +122,56 @@ def test_start_command_resets_session() -> None:
     assert "Новый заказ" in reply.text
     assert reply.parse_mode == "HTML"
     assert reply.reply_keyboard == [["Все выбрал"], ["Сбросить заказ"]]
+
+
+def test_menu_command_shows_catalog_without_breaking_pending_choice_flow() -> None:
+    service, store = build_service({})
+    store.save(
+        1001,
+        ConversationSession(
+            state=State(
+                entities=Entities(items=[Item(name="Пепперони", qty=1)]),
+                missing=["size_cm"],
+                pending_choice=Choice(field="size_cm", options=["25 см", "30 см"], item_index=0),
+            ),
+            checkout_step="draft",
+        ),
+    )
+
+    reply = service.handle_message(1001, "меню")
+    saved = store.get(1001)
+
+    assert "Меню пицц" in reply.text
+    assert "Маргарита" in reply.text
+    assert "Пепперони" in reply.text
+    assert reply.reply_keyboard == [["25 см"], ["30 см"], ["Сбросить заказ"]]
+    assert saved.state.pending_choice is not None
+    assert saved.state.pending_choice.field == "size_cm"
+    assert saved.state.pending_choice.options == ["25 см", "30 см"]
+
+
+def test_menu_command_does_not_interrupt_manual_edit_mode() -> None:
+    service, store = build_service({})
+    store.save(
+        1002,
+        ConversationSession(
+            state=State(
+                entities=Entities(items=[Item(name="Маргарита", qty=1, size_cm=30)], address="ул. Старая, 1"),
+                missing=["address"],
+            ),
+            editing_field="address",
+            checkout_step="address",
+        ),
+    )
+
+    reply = service.handle_message(1002, "/menu")
+    saved = store.get(1002)
+
+    assert "Меню пицц" in reply.text
+    assert "Продолжайте редактирование" in reply.text
+    assert reply.reply_keyboard == [["Назад", "Сбросить заказ"]]
+    assert saved.editing_field == "address"
+    assert saved.checkout_step == "address"
 
 
 def test_ask_flow_returns_choice_keyboard() -> None:

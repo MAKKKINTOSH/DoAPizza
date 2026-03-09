@@ -16,6 +16,7 @@ See product behavior rules in [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md).
 3. Repeats follow-up questions returned by NLP (`ASK`, `message`, `choices`).
 4. When NLP returns `READY`, shows an order summary and asks for confirmation.
 5. Rejects pizzas that are not present in the temporary local catalog stub.
+6. Supports `/menu` command to show currently available pizzas without interrupting current order flow.
 
 ## Requirements
 
@@ -42,6 +43,9 @@ Optional env vars:
 - `TELEGRAM_POLL_TIMEOUT_SECONDS`
 - `HTTP_TIMEOUT_SECONDS`
 - `NLP_REQUEST_TIMEOUT_SECONDS`
+- `CATALOG_API_URL`
+- `CATALOG_REFRESH_INTERVAL_SECONDS`
+- `CATALOG_HTTP_TIMEOUT_SECONDS`
 - `CATALOG_PIZZAS`
 - `LOG_LEVEL`
 
@@ -69,9 +73,10 @@ For local `NLP_SERVICE_BASE_URL`, use `127.0.0.1`, not `0.0.0.0`.
 
 The NLP client also ignores proxy environment variables on purpose, so local proxy settings do not interfere with bot-to-NLP traffic.
 
-## Catalog stub
+## Catalog source
 
-Pizza existence is currently checked by a local stub in `CATALOG_PIZZAS`. This is intentional and isolated from NLP. Once the real catalog API appears, replace the verifier implementation in `src/tgbot/catalog.py`.
+The bot refreshes pizza catalog from backend `CATALOG_API_URL` every `CATALOG_REFRESH_INTERVAL_SECONDS`.
+If backend is unavailable, bot keeps last successful snapshot and falls back to local `CATALOG_PIZZAS` on cold start.
 
 ## Tests
 

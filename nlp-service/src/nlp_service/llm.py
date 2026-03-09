@@ -10,6 +10,7 @@ from typing import Literal
 from openai import DefaultHttpxClient, OpenAI
 from pydantic import BaseModel, Field, ValidationError
 
+from .catalog_runtime import catalog_runtime
 from .schemas import Choice, EditOperation, Entities, State
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ class LLMClient:
     def _user_prompt(self, text: str, state: State) -> str:
         # Current state is serialized explicitly so model sees full dialogue context.
         state_json = json.dumps(state.model_dump(), ensure_ascii=True)
-        catalog = os.getenv("CATALOG_PIZZAS", "Маргарита,Пепперони,Четыре сыра,Гавайская,Диабло")
+        catalog = ",".join(catalog_runtime.get_snapshot().pizza_names)
         return (
             "Text: " + text + "\n"
             "Current state JSON: " + state_json + "\n"

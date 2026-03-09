@@ -66,6 +66,9 @@ class Settings(BaseModel):
     telegram_bot_token: str = Field(min_length=1)
     telegram_api_base_url: str = "https://api.telegram.org"
     nlp_service_base_url: str = "http://127.0.0.1:8000"
+    catalog_api_url: str = "http://127.0.0.1:8000/api/restaurant/variants/"
+    catalog_refresh_interval_seconds: int = 300
+    catalog_http_timeout_seconds: float = 5.0
     telegram_poll_timeout_seconds: int = 30
     http_timeout_seconds: float = 10.0
     nlp_request_timeout_seconds: float = 45.0
@@ -75,7 +78,8 @@ class Settings(BaseModel):
         "Пепперони",
         "Четыре сыра",
         "Гавайская",
-        "Диабло",
+        "Мясная",
+        "Карбонара",
     )
 
     @classmethod
@@ -89,6 +93,9 @@ class Settings(BaseModel):
             "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
             "telegram_api_base_url": os.getenv("TELEGRAM_API_BASE_URL", "https://api.telegram.org").rstrip("/"),
             "nlp_service_base_url": os.getenv("NLP_SERVICE_BASE_URL", "http://127.0.0.1:8000").rstrip("/"),
+            "catalog_api_url": os.getenv("CATALOG_API_URL", "http://127.0.0.1:8000/api/restaurant/variants/").rstrip("/") + "/",
+            "catalog_refresh_interval_seconds": int(os.getenv("CATALOG_REFRESH_INTERVAL_SECONDS", "300")),
+            "catalog_http_timeout_seconds": float(os.getenv("CATALOG_HTTP_TIMEOUT_SECONDS", "5")),
             "telegram_poll_timeout_seconds": int(os.getenv("TELEGRAM_POLL_TIMEOUT_SECONDS", "30")),
             "http_timeout_seconds": float(os.getenv("HTTP_TIMEOUT_SECONDS", "10")),
             "nlp_request_timeout_seconds": float(os.getenv("NLP_REQUEST_TIMEOUT_SECONDS", "45")),

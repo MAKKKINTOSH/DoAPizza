@@ -21,6 +21,7 @@ from .schemas import Choice, Entities, Item, ParseResponse, State, TimeInfo
 from .session_store import SessionStore
 
 START_COMMANDS = {"/start", "start", "/help", "help"}
+MENU_COMMANDS = {"/menu", "menu", "меню"}
 RESET_COMMANDS = {"/reset", "сбросить заказ", "начать заново"}
 PROCEED_COMMANDS = {"все выбрал", "всё выбрал", "готово", "дальше", "продолжить"}
 ADD_MORE_COMMANDS = {"хочу еще заказать", "хочу ещё заказать", "добавить еще", "добавить ещё"}
@@ -127,6 +128,10 @@ class OrderService:
             session.editing_field,
             session.checkout_step,
         )
+
+        if normalized in MENU_COMMANDS:
+            # Show currently available pizzas without mutating order flow state.
+            return self._build_menu_reply(session)
 
         if session.editing_field:
             # Manual edit mode bypasses regular parser branch.
@@ -711,6 +716,46 @@ class OrderService:
             f"{preserved}",
         )
         return header + self._append_draft_if_needed(state.entities)
+
+    def _build_menu_reply(self, session) -> BotReply:
+        pizzas = self._catalog_verifier.list_pizzas()
+        if pizzas:
+            menu_lines = "\n".join(f"{index}. {html.escape(name)}" for index, name in enumerate(pizzas, start=1))
+            body = f"Сейчас доступны:\n{menu_lines}\n\nТекущий заказ не изменился."
+        else:
+            body = "Список пицц сейчас недоступен. Текущий заказ не изменился."
+
+        if session.editing_field:
+            # Keep manual-edit mode untouched and preserve its local keyboard.
+            return BotReply(
+                self._section(
+                    "Меню пицц",
+                    body + "\n\nПродолжайте редактирование: введите новое значение или нажмите «Назад».",
+                ),
+                reply_keyboard=[["Назад", "Сбросить заказ"]],
+            )
+
+        parse_result = self._parse_result_for_current_pending_choice(session.state)
+        return BotReply(
+            self._section("Меню пицц", body) + self._append_draft_if_needed(session.state.entities),
+            reply_keyboard=self._keyboard_for_session(session, parse_result),
+        )
+
+    def _parse_result_for_current_pending_choice(self, state: State) -> ParseResponse | None:
+        choice = state.pending_choice
+        if choice is None:
+            return None
+        if choice.field not in {"size_cm", "variant", "modifiers"}:
+            return None
+        return ParseResponse(
+            action="ASK",
+            message="",
+            entities=state.entities,
+            missing=state.missing,
+            choices=choice,
+            state=state,
+            confidence=0.0,
+        )
 
     def _build_reply_keyboard(self, parse_result: ParseResponse) -> list[list[str]] | None:
         if parse_result.choices and parse_result.choices.options:
