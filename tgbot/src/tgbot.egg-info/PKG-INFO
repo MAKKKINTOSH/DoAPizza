@@ -4,6 +4,7 @@ Version: 0.1.0
 Summary: Telegram bot service for pizza ordering via the NLP module
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: aiogram>=3.10.0
 Requires-Dist: httpx>=0.27.0
 Requires-Dist: pydantic>=2.7.0
 Provides-Extra: dev
@@ -13,7 +14,7 @@ Requires-Dist: pytest>=8.0.0; extra == "dev"
 
 Telegram bot service for pizza ordering. It uses `nlp-service` as the dialogue brain and adds:
 
-- Telegram Bot API polling
+- Telegram transport via `aiogram`
 - per-chat conversation state
 - confirmation step before final submission
 - placeholder catalog validation for pizza names
@@ -62,7 +63,7 @@ Optional env vars:
 uv run python main.py
 ```
 
-The bot uses long polling and stores chat sessions in memory. If the process restarts, active conversations are lost.
+The bot uses long polling (`aiogram`) and stores chat sessions in memory. If the process restarts, active conversations are lost.
 
 ## Logging
 

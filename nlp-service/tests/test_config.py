@@ -1,3 +1,8 @@
+"""
+This module implements test config logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 import os
 from pathlib import Path
 
@@ -5,6 +10,16 @@ from nlp_service.config import load_dotenv_file
 
 
 def test_load_dotenv_file(monkeypatch) -> None:
+    """
+    Execute test load dotenv file.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     env_file = Path(__file__).resolve().parents[1] / ".env.example"
 
     monkeypatch.delenv("PORT", raising=False)

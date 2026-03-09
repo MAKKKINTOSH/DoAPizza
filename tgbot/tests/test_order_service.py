@@ -1,3 +1,8 @@
+"""
+This module implements test order service logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 from tgbot.catalog import CatalogVerifier
 from tgbot.nlp_client import NLPClientError
 from tgbot.order_service import OrderService
@@ -6,19 +11,69 @@ from tgbot.session_store import ConversationSession, InMemorySessionStore
 
 
 class FakeNLPClient:
+    """
+    Represents FakeNLPClient.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     def __init__(self, responses: dict[str, ParseResponse]) -> None:
+        """
+        Execute init.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - responses: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         self._responses = responses
 
     def parse(self, text: str, state: State | None) -> ParseResponse:
+        """
+        Execute parse.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - text: input consumed by this function while processing the current request.
+        - state: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         return self._responses[text].model_copy(deep=True)
 
 
 class FailingNLPClient:
+    """
+    Represents FailingNLPClient.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     def parse(self, text: str, state: State | None) -> ParseResponse:
+        """
+        Execute parse.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - text: input consumed by this function while processing the current request.
+        - state: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         raise NLPClientError("timed out")
 
 
 def build_service(responses: dict[str, ParseResponse]) -> tuple[OrderService, InMemorySessionStore]:
+    """
+    Execute build service.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - responses: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     store = InMemorySessionStore()
     service = OrderService(
         nlp_client=FakeNLPClient(responses),
@@ -31,6 +86,16 @@ def build_service(responses: dict[str, ParseResponse]) -> tuple[OrderService, In
 
 
 def build_service_with_client(nlp_client) -> tuple[OrderService, InMemorySessionStore]:
+    """
+    Execute build service with client.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - nlp_client: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     store = InMemorySessionStore()
     service = OrderService(
         nlp_client=nlp_client,
@@ -43,6 +108,13 @@ def build_service_with_client(nlp_client) -> tuple[OrderService, InMemorySession
 
 
 def test_start_command_resets_session() -> None:
+    """
+    Execute test start command resets session.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     service, _ = build_service({})
 
     reply = service.handle_message(1, "/start")
@@ -53,6 +125,13 @@ def test_start_command_resets_session() -> None:
 
 
 def test_ask_flow_returns_choice_keyboard() -> None:
+    """
+    Execute test ask flow returns choice keyboard.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     state = State(
         entities=Entities(items=[Item(name="Маргарита", qty=1)]),
         missing=["size_cm"],
@@ -78,6 +157,13 @@ def test_ask_flow_returns_choice_keyboard() -> None:
 
 
 def test_pending_size_choice_is_applied_locally_without_nlp() -> None:
+    """
+    Execute test pending size choice is applied locally without nlp.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     service, store = build_service_with_client(FailingNLPClient())
     store.save(
         11,
@@ -100,7 +186,209 @@ def test_pending_size_choice_is_applied_locally_without_nlp() -> None:
     assert saved.state.pending_choice is None
 
 
+def test_pending_size_choice_ignores_unrelated_text_without_order_mutation() -> None:
+    """
+    Execute test pending size choice ignores unrelated text without order mutation.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    state = State(
+        entities=Entities(items=[Item(name="Пепперони", qty=1)]),
+        missing=["size_cm"],
+        pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+    )
+    response = ParseResponse(
+        action="ASK",
+        message="Какой размер Пепперони?",
+        entities=state.entities,
+        missing=state.missing,
+        choices=state.pending_choice,
+        state=state,
+        confidence=0.9,
+    )
+    service, store = build_service({"пеперони": response})
+
+    service.handle_message(12, "пеперони")
+    reply = service.handle_message(12, "моцарелла")
+    saved = store.get(12)
+
+    assert "Сначала выберите размер из предложенных вариантов." in reply.text
+    assert reply.reply_keyboard == [["25 см"], ["30 см"], ["35 см"], ["Сбросить заказ"]]
+    assert len(saved.state.entities.items) == 1
+    assert saved.state.entities.items[0].name == "Пепперони"
+    assert saved.state.entities.items[0].qty == 1
+    assert saved.state.entities.items[0].size_cm is None
+    assert saved.state.pending_choice is not None
+    assert saved.state.pending_choice.field == "size_cm"
+
+
+def test_hallucinated_addition_without_catalog_match_is_rejected() -> None:
+    """
+    Execute test hallucinated addition without catalog match is rejected.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    initial_state = State(
+        entities=Entities(items=[Item(name="Пепперони", qty=1)]),
+        missing=["size_cm"],
+        pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+    )
+    initial_response = ParseResponse(
+        action="ASK",
+        message="Какой размер Пепперони?",
+        entities=initial_state.entities,
+        missing=initial_state.missing,
+        choices=initial_state.pending_choice,
+        state=initial_state,
+        confidence=0.91,
+    )
+
+    hallucinated_state = State(
+        entities=Entities(items=[Item(name="Пепперони", qty=1), Item(name="Маргарита", qty=2)]),
+        missing=["size_cm"],
+        pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+    )
+    hallucinated_response = ParseResponse(
+        action="ASK",
+        message="Какой размер Пепперони?",
+        entities=hallucinated_state.entities,
+        missing=hallucinated_state.missing,
+        choices=hallucinated_state.pending_choice,
+        state=hallucinated_state,
+        confidence=0.62,
+    )
+
+    service, store = build_service({"пеперони": initial_response, "добавь моцареллу": hallucinated_response})
+
+    service.handle_message(13, "пеперони")
+    reply = service.handle_message(13, "добавь моцареллу")
+    saved = store.get(13)
+
+    assert "Не распознал пиццу" in reply.text
+    assert len(saved.state.entities.items) == 1
+    assert saved.state.entities.items[0].name == "Пепперони"
+    assert saved.state.entities.items[0].qty == 1
+    assert saved.state.pending_choice is not None
+    assert saved.state.pending_choice.field == "size_cm"
+
+
+def test_hallucinated_quantity_increase_without_catalog_match_is_rejected() -> None:
+    """
+    Execute test hallucinated quantity increase without catalog match is rejected.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    initial_state = State(
+        entities=Entities(items=[Item(name="Пепперони", qty=1)]),
+        missing=["size_cm"],
+        pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+    )
+    initial_response = ParseResponse(
+        action="ASK",
+        message="Какой размер Пепперони?",
+        entities=initial_state.entities,
+        missing=initial_state.missing,
+        choices=initial_state.pending_choice,
+        state=initial_state,
+        confidence=0.9,
+    )
+
+    hallucinated_state = State(
+        entities=Entities(items=[Item(name="Пепперони", qty=3)]),
+        missing=["size_cm"],
+        pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+    )
+    hallucinated_response = ParseResponse(
+        action="ASK",
+        message="Какой размер Пепперони?",
+        entities=hallucinated_state.entities,
+        missing=hallucinated_state.missing,
+        choices=hallucinated_state.pending_choice,
+        state=hallucinated_state,
+        confidence=0.51,
+    )
+
+    service, store = build_service({"пеперони": initial_response, "моцарелла": hallucinated_response})
+
+    service.handle_message(15, "пеперони")
+    reply = service.handle_message(15, "моцарелла")
+    saved = store.get(15)
+
+    assert "Не распознал пиццу" in reply.text
+    assert len(saved.state.entities.items) == 1
+    assert saved.state.entities.items[0].name == "Пепперони"
+    assert saved.state.entities.items[0].qty == 1
+    assert saved.state.pending_choice is not None
+    assert saved.state.pending_choice.field == "size_cm"
+
+
+def test_pending_size_choice_allows_add_intent_before_size_resolution() -> None:
+    """
+    Execute test pending size choice allows add intent before size resolution.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    initial_state = State(
+        entities=Entities(items=[Item(name="Пепперони", qty=1)]),
+        missing=["size_cm"],
+        pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+    )
+    initial_response = ParseResponse(
+        action="ASK",
+        message="Какой размер Пепперони?",
+        entities=initial_state.entities,
+        missing=initial_state.missing,
+        choices=initial_state.pending_choice,
+        state=initial_state,
+        confidence=0.9,
+    )
+
+    add_state = State(
+        entities=Entities(items=[Item(name="Пепперони", qty=1), Item(name="Маргарита", qty=1)]),
+        missing=["size_cm"],
+        pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+    )
+    add_response = ParseResponse(
+        action="ASK",
+        message="Какой размер Пепперони?",
+        entities=add_state.entities,
+        missing=add_state.missing,
+        choices=add_state.pending_choice,
+        state=add_state,
+        confidence=0.88,
+    )
+
+    service, store = build_service({"пеперони": initial_response, "еще маргариту": add_response})
+
+    service.handle_message(14, "пеперони")
+    reply = service.handle_message(14, "еще маргариту")
+    saved = store.get(14)
+
+    assert "Сначала выберите размер из предложенных вариантов." not in reply.text
+    assert len(saved.state.entities.items) == 2
+    assert saved.state.entities.items[0].name == "Пепперони"
+    assert saved.state.entities.items[1].name == "Маргарита"
+    assert saved.state.pending_choice is not None
+    assert saved.state.pending_choice.field == "size_cm"
+    assert saved.state.pending_choice.item_index == 0
+
+
 def test_unknown_pizza_is_blocked_by_catalog_stub() -> None:
+    """
+    Execute test unknown pizza is blocked by catalog stub.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     state = State(
         entities=Entities(items=[Item(name="Супер мясная", qty=1)]),
         missing=[],
@@ -127,6 +415,13 @@ def test_unknown_pizza_is_blocked_by_catalog_stub() -> None:
 
 
 def test_catalog_verifier_accepts_small_typos() -> None:
+    """
+    Execute test catalog verifier accepts small typos.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     state = State(
         entities=Entities(items=[Item(name="Пеперони", qty=1, size_cm=25)]),
         missing=[],
@@ -151,6 +446,13 @@ def test_catalog_verifier_accepts_small_typos() -> None:
 
 
 def test_ready_flow_requests_confirmation_and_confirms_order() -> None:
+    """
+    Execute test ready flow requests confirmation and confirms order.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     entities = Entities(
         items=[Item(name="Пепперони", qty=2, size_cm=30)],
         delivery_type="delivery",
@@ -189,6 +491,13 @@ def test_ready_flow_requests_confirmation_and_confirms_order() -> None:
 
 
 def test_manual_address_edit_keeps_order_and_returns_to_confirmation() -> None:
+    """
+    Execute test manual address edit keeps order and returns to confirmation.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     entities = Entities(
         items=[Item(name="Пепперони", qty=1, size_cm=30)],
         delivery_type="delivery",
@@ -219,6 +528,13 @@ def test_manual_address_edit_keeps_order_and_returns_to_confirmation() -> None:
 
 
 def test_freeform_edit_leaves_confirmation_mode_before_parse() -> None:
+    """
+    Execute test freeform edit leaves confirmation mode before parse.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     entities = Entities(
         items=[Item(name="Пепперони", qty=1, size_cm=30)],
         delivery_type="delivery",
@@ -267,6 +583,13 @@ def test_freeform_edit_leaves_confirmation_mode_before_parse() -> None:
 
 
 def test_timeout_on_first_message_can_recover_from_catalog_text() -> None:
+    """
+    Execute test timeout on first message can recover from catalog text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     service, store = build_service_with_client(FailingNLPClient())
 
     reply = service.handle_message(70, "мне надо пеперони")
@@ -277,6 +600,13 @@ def test_timeout_on_first_message_can_recover_from_catalog_text() -> None:
 
 
 def test_timeout_on_first_message_can_recover_from_phonetic_catalog_typo() -> None:
+    """
+    Execute test timeout on first message can recover from phonetic catalog typo.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     service, store = build_service_with_client(FailingNLPClient())
 
     reply = service.handle_message(72, "мне надо пипирони")
@@ -287,6 +617,13 @@ def test_timeout_on_first_message_can_recover_from_phonetic_catalog_typo() -> No
 
 
 def test_timeout_on_first_message_uses_order_wording_not_change_wording() -> None:
+    """
+    Execute test timeout on first message uses order wording not change wording.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     service, _ = build_service_with_client(FailingNLPClient())
 
     reply = service.handle_message(71, "привет")
@@ -296,6 +633,13 @@ def test_timeout_on_first_message_uses_order_wording_not_change_wording() -> Non
 
 
 def test_draft_does_not_force_checkout_before_button() -> None:
+    """
+    Execute test draft does not force checkout before button.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     state = State(
         entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=30)]),
         missing=["delivery_type"],
@@ -320,6 +664,13 @@ def test_draft_does_not_force_checkout_before_button() -> None:
 
 
 def test_checkout_asks_delivery_after_proceed_button() -> None:
+    """
+    Execute test checkout asks delivery after proceed button.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     state = State(
         entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=30)]),
         missing=["delivery_type"],
@@ -345,6 +696,13 @@ def test_checkout_asks_delivery_after_proceed_button() -> None:
 
 
 def test_checkout_can_return_to_draft_with_add_more_button() -> None:
+    """
+    Execute test checkout can return to draft with add more button.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     state = State(
         entities=Entities(
             items=[Item(name="Пепперони", qty=1, size_cm=30)],

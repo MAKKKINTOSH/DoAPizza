@@ -1,3 +1,8 @@
+"""
+This module implements parser logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 import os
 import re
 
@@ -12,6 +17,17 @@ DEFAULT_CATALOG_PIZZAS = ("Маргарита", "Пепперони", "Четы�
 
 
 def parse_text(text: str, state: State | None) -> ParseResponse:
+    """
+    Execute parse text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     current_state = state.model_copy(deep=True) if state else State()
 
     message = ""
@@ -27,6 +43,11 @@ def parse_text(text: str, state: State | None) -> ParseResponse:
     call_llm = True
     if choice_applied and (is_choice_only(text) or is_exact_choice_reply(text, selected_choice)):
         call_llm = False
+
+    size_choice_handled, size_message = _apply_expected_size_choice_input(current_state, text)
+    if size_choice_handled:
+        call_llm = False
+        message = size_message or message
 
     scalar_applied, scalar_message = _apply_expected_scalar_input(current_state, text)
     if scalar_applied:
@@ -86,6 +107,16 @@ def parse_text(text: str, state: State | None) -> ParseResponse:
 
 
 def _maybe_call_delivery_api(entities: Entities) -> None:
+    """
+    Execute maybe call delivery api.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - entities: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     base_url = os.getenv("DELIVERY_API_BASE_URL", "").strip()
     if not base_url:
         return
@@ -108,6 +139,16 @@ ALLOWED_SIZE_CM = [25, 30, 35]
 
 
 def _enforce_required_order_flow(state: State) -> State:
+    """
+    Execute enforce required order flow.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     updated = state.model_copy(deep=True)
     updated.pending_choice = _normalize_pending_choice(updated.pending_choice)
 
@@ -159,6 +200,16 @@ def _enforce_required_order_flow(state: State) -> State:
 
 
 def _normalize_pending_choice(choice: Choice | None) -> Choice | None:
+    """
+    Execute normalize pending choice.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - choice: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if choice is None:
         return None
 
@@ -171,11 +222,32 @@ def _normalize_pending_choice(choice: Choice | None) -> Choice | None:
 
 
 def _ensure_field_in_missing(missing: list[str], field: str) -> list[str]:
+    """
+    Execute ensure field in missing.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - missing: input consumed by this function while processing the current request.
+    - field: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     without_field = [value for value in missing if value != field]
     return [field, *without_field]
 
 
 def _requires_address(delivery_type: str | None) -> bool:
+    """
+    Execute requires address.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - delivery_type: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if delivery_type is None:
         return False
     normalized = delivery_type.strip().lower()
@@ -183,6 +255,16 @@ def _requires_address(delivery_type: str | None) -> bool:
 
 
 def _build_followup_message(state: State) -> str:
+    """
+    Execute build followup message.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if not state.entities.items:
         return "Какую пиццу хотите заказать?"
 
@@ -208,6 +290,17 @@ def _build_followup_message(state: State) -> str:
 
 
 def _should_replace_ask_message(message: str, state: State) -> bool:
+    """
+    Execute should replace ask message.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - message: input consumed by this function while processing the current request.
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = " ".join(message.strip().lower().split())
     if not normalized:
         return True
@@ -236,6 +329,16 @@ def _should_replace_ask_message(message: str, state: State) -> bool:
 
 
 def _choice_message(state: State) -> str:
+    """
+    Execute choice message.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     assert state.pending_choice is not None
     choice = state.pending_choice
     item = None
@@ -267,6 +370,16 @@ def _choice_message(state: State) -> str:
 
 
 def _build_invalid_size_choice(state: State) -> Choice | None:
+    """
+    Execute build invalid size choice.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     for index, item in enumerate(state.entities.items):
         if item.size_cm is None or item.size_cm in ALLOWED_SIZE_CM:
             continue
@@ -284,6 +397,16 @@ def _build_invalid_size_choice(state: State) -> Choice | None:
 
 
 def _nearest_size_options(value: int) -> list[int]:
+    """
+    Execute nearest size options.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     ranked = sorted(ALLOWED_SIZE_CM, key=lambda option: (abs(option - value), -option))
     first = ranked[0]
     second = ranked[1] if len(ranked) > 1 else ranked[0]
@@ -292,6 +415,18 @@ def _nearest_size_options(value: int) -> list[int]:
 
 
 def _sanitize_incoming_entities(current_state: State, incoming: Entities, text: str) -> Entities:
+    """
+    Execute sanitize incoming entities.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - current_state: input consumed by this function while processing the current request.
+    - incoming: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     sanitized = incoming.model_copy(deep=True)
     if not incoming.items:
         return sanitized
@@ -309,6 +444,17 @@ def _sanitize_incoming_entities(current_state: State, incoming: Entities, text: 
 
 
 def _apply_edit_operations(entities: Entities, operations: list[EditOperation]) -> Entities:
+    """
+    Execute apply edit operations.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - entities: input consumed by this function while processing the current request.
+    - operations: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     updated = entities.model_copy(deep=True)
     for operation in operations:
         if operation.op == "add_item":
@@ -335,6 +481,17 @@ def _apply_edit_operations(entities: Entities, operations: list[EditOperation]) 
 
 
 def _align_result_with_catalog(text: str, llm_result) -> object:
+    """
+    Execute align result with catalog.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - llm_result: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     mentioned = _extract_catalog_pizzas_from_text(text)
     if not mentioned:
         return llm_result
@@ -352,6 +509,18 @@ def _align_result_with_catalog(text: str, llm_result) -> object:
 
 
 def _align_edit_operations_with_state(text: str, state: State, llm_result) -> object:
+    """
+    Execute align edit operations with state.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - state: input consumed by this function while processing the current request.
+    - llm_result: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if not llm_result.edit_operations or not state.entities.items:
         return llm_result
 
@@ -372,6 +541,17 @@ def _align_edit_operations_with_state(text: str, state: State, llm_result) -> ob
 
 
 def _strip_implicit_size_from_additions(text: str, llm_result) -> object:
+    """
+    Execute strip implicit size from additions.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - llm_result: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if not _looks_like_add_item_request(text) or _has_explicit_size_mention(text):
         return llm_result
 
@@ -387,6 +567,18 @@ def _strip_implicit_size_from_additions(text: str, llm_result) -> object:
 
 
 def _filter_edit_operations_for_text(state: State, operations: list[EditOperation], text: str) -> list[EditOperation]:
+    """
+    Execute filter edit operations for text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+    - operations: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if not operations:
         return operations
 
@@ -404,6 +596,18 @@ def _filter_edit_operations_for_text(state: State, operations: list[EditOperatio
 
 
 def _infer_item_update_operations(state: State, incoming: Entities, text: str) -> list[EditOperation]:
+    """
+    Execute infer item update operations.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+    - incoming: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if _looks_like_add_item_request(text):
         return []
     if not _looks_like_existing_item_update_request(text):
@@ -439,6 +643,17 @@ def _infer_item_update_operations(state: State, incoming: Entities, text: str) -
 
 
 def _apply_item_update(item: Item, operation: EditOperation) -> None:
+    """
+    Execute apply item update.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - item: input consumed by this function while processing the current request.
+    - operation: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if operation.name:
         item.name = operation.name
     if operation.qty is not None:
@@ -458,6 +673,17 @@ def _apply_item_update(item: Item, operation: EditOperation) -> None:
 
 
 def _merge_scalar_fields(base: Entities, incoming: Entities) -> Entities:
+    """
+    Execute merge scalar fields.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base: input consumed by this function while processing the current request.
+    - incoming: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     merged = base.model_copy(deep=True)
     for field in ["delivery_type", "address", "time", "phone", "comment"]:
         value = getattr(incoming, field)
@@ -467,6 +693,16 @@ def _merge_scalar_fields(base: Entities, incoming: Entities) -> Entities:
 
 
 def _looks_like_add_item_request(text: str) -> bool:
+    """
+    Execute looks like add item request.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize_text(text)
     add_markers = ("еще", "ещё", "добавь", "добавить", "хочу еще", "хочу ещё")
     if not any(marker in normalized for marker in add_markers):
@@ -482,6 +718,16 @@ def _looks_like_add_item_request(text: str) -> bool:
 
 
 def _looks_like_existing_item_update_request(text: str) -> bool:
+    """
+    Execute looks like existing item update request.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize_text(text)
     update_markers = ("добав", "убери", "удали", "без ", "замени", "измени", "исправ", "сделай")
     if not any(marker in normalized for marker in update_markers):
@@ -497,6 +743,16 @@ def _looks_like_existing_item_update_request(text: str) -> bool:
 
 
 def _has_explicit_size_mention(text: str) -> bool:
+    """
+    Execute has explicit size mention.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize_text(text)
     if re.search(r"\b\d{2}\s*(см|cm|сантиметр(?:а|ов)?|сантиметров?)?\b", normalized):
         return True
@@ -505,12 +761,32 @@ def _has_explicit_size_mention(text: str) -> bool:
 
 
 def _looks_like_direct_order_request(text: str) -> bool:
+    """
+    Execute looks like direct order request.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize_text(text)
     order_markers = ("хочу", "мне", "надо", "будет", "нужна", "нужно", "закажи")
     return any(marker in normalized for marker in order_markers)
 
 
 def _extract_catalog_pizzas_from_text(text: str) -> list[str]:
+    """
+    Execute extract catalog pizzas from text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     catalog = _catalog_pizzas()
     normalized_catalog = {_normalize_name_for_catalog(name): name for name in catalog}
     token_lengths = sorted({len(normalized.split()) for normalized in normalized_catalog}, reverse=True)
@@ -546,12 +822,30 @@ def _extract_catalog_pizzas_from_text(text: str) -> list[str]:
 
 
 def _catalog_pizzas() -> tuple[str, ...]:
+    """
+    Execute catalog pizzas.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     raw_catalog = os.getenv("CATALOG_PIZZAS", "")
     catalog = tuple(item.strip() for item in raw_catalog.split(",") if item.strip())
     return catalog or DEFAULT_CATALOG_PIZZAS
 
 
 def _resolve_catalog_name(item_name: str, normalized_catalog: dict[str, str]) -> str | None:
+    """
+    Execute resolve catalog name.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - item_name: input consumed by this function while processing the current request.
+    - normalized_catalog: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize_name_for_catalog(item_name)
     exact = normalized_catalog.get(normalized)
     if exact is not None:
@@ -579,16 +873,47 @@ def _resolve_catalog_name(item_name: str, normalized_catalog: dict[str, str]) ->
 
 
 def _normalize_name_for_catalog(value: str) -> str:
+    """
+    Execute normalize name for catalog.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     lowered = value.strip().lower().replace("ё", "е")
     return re.sub(r"[^a-zа-я0-9]+", " ", lowered).strip()
 
 
 def _soft_normalize_name_for_catalog(value: str) -> str:
+    """
+    Execute soft normalize name for catalog.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize_name_for_catalog(value)
     return re.sub(r"(.)\1+", r"\1", normalized)
 
 
 def _levenshtein_distance(left: str, right: str) -> int:
+    """
+    Execute levenshtein distance.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - left: input consumed by this function while processing the current request.
+    - right: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if left == right:
         return 0
     if not left:
@@ -609,6 +934,16 @@ def _levenshtein_distance(left: str, right: str) -> int:
 
 
 def _catalog_match_threshold(length: int) -> int:
+    """
+    Execute catalog match threshold.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - length: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if length <= 5:
         return 1
     if length <= 9:
@@ -617,6 +952,17 @@ def _catalog_match_threshold(length: int) -> int:
 
 
 def _find_matching_existing_item_index(items: list[Item], item_name: str) -> int | None:
+    """
+    Execute find matching existing item index.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - items: input consumed by this function while processing the current request.
+    - item_name: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized_target = _normalize_name_for_catalog(item_name)
     soft_normalized_target = _soft_normalize_name_for_catalog(item_name)
 
@@ -636,6 +982,16 @@ def _find_matching_existing_item_index(items: list[Item], item_name: str) -> int
 
 
 def _expected_scalar_field(state: State) -> str | None:
+    """
+    Execute expected scalar field.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if state.pending_choice and state.pending_choice.field in {"delivery_type"}:
         return state.pending_choice.field
     if not state.missing:
@@ -647,22 +1003,62 @@ def _expected_scalar_field(state: State) -> str | None:
 
 
 def _looks_like_address(text: str) -> bool:
+    """
+    Execute looks like address.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = text.strip().lower()
     address_markers = ["ул", "улица", "дом", "д.", "просп", "пр-т", "переул", "шоссе", "бульвар", ","]
     return any(marker in normalized for marker in address_markers) or bool(re.search(r"\d", normalized))
 
 
 def _looks_like_phone(text: str) -> bool:
+    """
+    Execute looks like phone.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     digits = re.sub(r"\D", "", text)
     return 9 <= len(digits) <= 15
 
 
 def _looks_like_time(text: str) -> bool:
+    """
+    Execute looks like time.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = text.strip().lower()
     return bool(re.search(r"\b\d{1,2}:\d{2}\b", normalized)) or "через" in normalized or "как можно скорее" in normalized
 
 
 def _looks_like_explicit_edit(text: str) -> bool:
+    """
+    Execute looks like explicit edit.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = text.strip().lower()
     edit_markers = (
         "замени",
@@ -679,6 +1075,17 @@ def _looks_like_explicit_edit(text: str) -> bool:
 
 
 def _apply_expected_scalar_input(state: State, text: str) -> tuple[bool, str]:
+    """
+    Execute apply expected scalar input.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     expected_field = _expected_scalar_field(state)
     if expected_field == "address" and _looks_like_address(text):
         updated = state.model_copy(deep=True)
@@ -718,7 +1125,87 @@ def _apply_expected_scalar_input(state: State, text: str) -> tuple[bool, str]:
     return False, ""
 
 
+def _apply_expected_size_choice_input(state: State, text: str) -> tuple[bool, str]:
+    """
+    Execute apply expected size choice input.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    if state.pending_choice is None or state.pending_choice.field != "size_cm":
+        return False, ""
+    if not is_choice_only(text):
+        return False, ""
+
+    parsed_size = _parse_size_choice_input(text)
+    if parsed_size is None:
+        return False, ""
+
+    current_options = _extract_size_values_from_options(state.pending_choice.options)
+    if parsed_size in current_options:
+        return False, ""
+
+    updated_choice = state.pending_choice.model_copy(deep=True)
+    nearest = _nearest_size_options(parsed_size)
+    updated_choice.options = [f"{value} см" for value in nearest]
+    updated_choice.requested_value = f"{parsed_size} см"
+    state.pending_choice = updated_choice
+    state.missing = _ensure_field_in_missing(state.missing, "size_cm")
+    return True, ""
+
+
+def _parse_size_choice_input(text: str) -> int | None:
+    """
+    Execute parse size choice input.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    numbers = re.findall(r"\d{1,3}", text)
+    if len(numbers) != 1:
+        return None
+    return int(numbers[0])
+
+
+def _extract_size_values_from_options(options: list[str]) -> list[int]:
+    """
+    Execute extract size values from options.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - options: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    values: list[int] = []
+    for option in options:
+        digits = re.findall(r"\d+", option)
+        if digits:
+            values.append(int(digits[0]))
+    return values
+
+
 def _parse_phone(text: str) -> str | None:
+    """
+    Execute parse phone.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     compact = re.sub(r"[^\d+]+", "", text.strip())
     digits = re.sub(r"\D", "", compact)
     if 9 <= len(digits) <= 15:
@@ -727,6 +1214,16 @@ def _parse_phone(text: str) -> str | None:
 
 
 def _parse_time(text: str) -> TimeInfo | None:
+    """
+    Execute parse time.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = " ".join(text.strip().lower().split())
     if normalized in {
         "сейчас",
@@ -750,6 +1247,17 @@ def _parse_time(text: str) -> TimeInfo | None:
 
 
 def _normalize_addition_item_qty(entities: Entities, text: str) -> None:
+    """
+    Execute normalize addition item qty.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - entities: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if len(entities.items) != 1 or not _looks_like_addition(text):
         return
 
@@ -761,12 +1269,32 @@ def _normalize_addition_item_qty(entities: Entities, text: str) -> None:
 
 
 def _looks_like_addition(text: str) -> bool:
+    """
+    Execute looks like addition.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = text.strip().lower()
     addition_markers = ("еще", "ещё", "добав", "и ")
     return any(marker in normalized for marker in addition_markers)
 
 
 def _has_explicit_item_quantity(text: str) -> bool:
+    """
+    Execute has explicit item quantity.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = text.strip().lower()
     without_size = re.sub(r"\b\d+\s*(см|cm|сантиметр(?:а|ов)?|сантиметров?)\b", " ", normalized)
 
@@ -792,4 +1320,14 @@ def _has_explicit_item_quantity(text: str) -> bool:
 
 
 def _normalize_text(value: str) -> str:
+    """
+    Execute normalize text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     return re.sub(r"\s+", " ", value.strip().lower())

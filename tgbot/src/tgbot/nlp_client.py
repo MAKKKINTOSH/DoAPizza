@@ -1,3 +1,8 @@
+"""
+This module implements nlp client logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -10,6 +15,10 @@ from .schemas import ParseResponse, State
 
 
 class NLPClientError(RuntimeError):
+    """
+    Represents NLPClientError.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     pass
 
 
@@ -17,16 +26,57 @@ logger = logging.getLogger(__name__)
 
 
 class NLPClientProtocol(Protocol):
+    """
+    Represents NLPClientProtocol.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     def parse(self, text: str, state: State | None) -> ParseResponse:
+        """
+        Execute parse.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - text: input consumed by this function while processing the current request.
+        - state: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         ...
 
 
 class NLPClient:
+    """
+    Represents NLPClient.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     def __init__(self, base_url: str, timeout_seconds: float) -> None:
+        """
+        Execute init.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - base_url: input consumed by this function while processing the current request.
+        - timeout_seconds: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         self._base_url = _normalize_local_base_url(base_url.rstrip("/"))
         self._timeout_seconds = timeout_seconds
 
     def parse(self, text: str, state: State | None) -> ParseResponse:
+        """
+        Execute parse.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - text: input consumed by this function while processing the current request.
+        - state: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         url = f"{self._base_url}/v1/parse"
         payload = {"text": text}
         if state is not None:
@@ -49,7 +99,7 @@ class NLPClient:
 
         try:
             parsed = ParseResponse.model_validate(response.json())
-            logger.info(
+            logger.debug(
                 "NLP parse completed action=%s items=%s missing=%s has_choice=%s confidence=%.2f",
                 parsed.action,
                 len(parsed.entities.items),
@@ -64,6 +114,17 @@ class NLPClient:
 
 
 def _preview_text(text: str, limit: int = 80) -> str:
+    """
+    Execute preview text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - limit: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     compact = " ".join(text.split())
     if len(compact) <= limit:
         return compact
@@ -71,6 +132,16 @@ def _preview_text(text: str, limit: int = 80) -> str:
 
 
 def _normalize_local_base_url(base_url: str) -> str:
+    """
+    Execute normalize local base url.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base_url: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     parts = urlsplit(base_url)
     if parts.hostname != "0.0.0.0":
         return base_url

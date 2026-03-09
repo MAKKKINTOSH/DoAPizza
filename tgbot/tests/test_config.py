@@ -1,3 +1,8 @@
+"""
+This module implements test config logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 import os
 from pathlib import Path
 
@@ -5,6 +10,16 @@ from tgbot.config import Settings, load_dotenv_file
 
 
 def test_load_dotenv_file(monkeypatch) -> None:
+    """
+    Execute test load dotenv file.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     env_file = Path(__file__).resolve().parents[1] / ".env.example"
 
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
@@ -23,6 +38,16 @@ def test_load_dotenv_file(monkeypatch) -> None:
 
 
 def test_settings_from_env_uses_catalog_override(monkeypatch) -> None:
+    """
+    Execute test settings from env uses catalog override.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
     monkeypatch.setenv("CATALOG_PIZZAS", "Маргарита,Пепперони")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")

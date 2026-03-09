@@ -1,3 +1,8 @@
+"""
+This module implements llm logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 import json
 import logging
 import os
@@ -14,10 +19,18 @@ logger = logging.getLogger(__name__)
 
 
 class LLMError(RuntimeError):
+    """
+    Represents LLMError.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     pass
 
 
 class LLMResult(BaseModel):
+    """
+    Represents LLMResult.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     entities: Entities = Field(default_factory=Entities)
     edit_operations: list[EditOperation] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)
@@ -28,7 +41,18 @@ class LLMResult(BaseModel):
 
 
 class LLMClient:
+    """
+    Represents LLMClient.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     def __init__(self) -> None:
+        """
+        Execute init.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         self.base_url = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
         self.api_key = os.getenv("LLM_API_KEY", "").strip() or os.getenv("OPENROUTER_API_KEY", "").strip()
         self.model = os.getenv("LLM_MODEL", "mistralai/mistral-small-3.1-24b-instruct:free")
@@ -50,6 +74,17 @@ class LLMClient:
         )
 
     def extract(self, text: str, state: State) -> LLMResult:
+        """
+        Execute extract.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - text: input consumed by this function while processing the current request.
+        - state: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         system_prompt = self._system_prompt()
         user_prompt = self._user_prompt(text, state)
         logger.info(
@@ -82,6 +117,13 @@ class LLMClient:
             raise LLMError(f"LLM JSON schema validation failed: {exc}") from exc
 
     def _system_prompt(self) -> str:
+        """
+        Execute system prompt.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         return (
             "You extract pizza order entities. "
             "Return only strict JSON, no markdown. "
@@ -110,6 +152,17 @@ class LLMClient:
         )
 
     def _user_prompt(self, text: str, state: State) -> str:
+        """
+        Execute user prompt.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - text: input consumed by this function while processing the current request.
+        - state: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         state_json = json.dumps(state.model_dump(), ensure_ascii=True)
         catalog = os.getenv("CATALOG_PIZZAS", "Маргарита,Пепперони,Четыре сыра,Гавайская,Диабло")
         return (
@@ -153,6 +206,17 @@ class LLMClient:
         )
 
     def _chat(self, system_prompt: str, user_prompt: str) -> str:
+        """
+        Execute chat.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - system_prompt: input consumed by this function while processing the current request.
+        - user_prompt: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         mode = self._effective_prompt_mode()
         if mode == "system_user":
             logger.debug("Using explicit system_user prompt mode")
@@ -173,6 +237,18 @@ class LLMClient:
             return self._request_with_retries(self._build_payload(system_prompt, user_prompt, "user_only"))
 
     def _build_payload(self, system_prompt: str, user_prompt: str, mode: str) -> dict[str, Any]:
+        """
+        Execute build payload.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - system_prompt: input consumed by this function while processing the current request.
+        - user_prompt: input consumed by this function while processing the current request.
+        - mode: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         if mode == "user_only":
             messages = [
                 {
@@ -201,6 +277,16 @@ class LLMClient:
         return payload
 
     def _request_with_retries(self, payload: dict[str, Any]) -> str:
+        """
+        Execute request with retries.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - payload: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         last_exc: Exception | None = None
         for attempt in range(self.retries + 1):
             try:
@@ -232,6 +318,13 @@ class LLMClient:
         raise LLMError(f"LLM request failed: {last_exc}")
 
     def _extra_headers(self) -> dict[str, str]:
+        """
+        Execute extra headers.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         headers: dict[str, str] = {}
         if self.site_url:
             headers["HTTP-Referer"] = self.site_url
@@ -240,6 +333,13 @@ class LLMClient:
         return headers
 
     def _effective_prompt_mode(self) -> str:
+        """
+        Execute effective prompt mode.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         if self._force_user_only:
             return "user_only"
         if self.prompt_mode in {"system_user", "user_only", "auto"}:
@@ -247,6 +347,16 @@ class LLMClient:
         return "auto"
 
     def _is_system_instruction_error(self, message: str) -> bool:
+        """
+        Execute is system instruction error.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - message: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         normalized = message.lower()
         markers = [
             "developer instruction is not enabled",
@@ -260,6 +370,16 @@ class LLMClient:
         return any(marker in normalized for marker in markers)
 
     def _extract_content(self, completion: Any) -> str:
+        """
+        Execute extract content.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - completion: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         try:
             content = completion.choices[0].message.content
         except (AttributeError, IndexError, KeyError, TypeError) as exc:
@@ -284,7 +404,29 @@ class LLMClient:
         raise LLMError(f"Unexpected LLM message content type: {type(content).__name__}")
 
     def _parse_json_with_fix(self, content: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+        """
+        Execute parse json with fix.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - content: input consumed by this function while processing the current request.
+        - system_prompt: input consumed by this function while processing the current request.
+        - user_prompt: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         def try_load(raw: str) -> dict[str, Any] | None:
+            """
+            Execute try load.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - raw: input consumed by this function while processing the current request.
+
+            Returns:
+            - A value derived from the current function logic and its validated inputs.
+            """
             try:
                 return json.loads(raw)
             except json.JSONDecodeError:
@@ -317,6 +459,13 @@ class LLMClient:
         return parsed
 
     def _backend_label(self) -> str:
+        """
+        Execute backend label.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         base_url = self.base_url.lower()
         if "openrouter.ai" in base_url:
             return "openrouter"
@@ -326,6 +475,17 @@ class LLMClient:
 
 
 def _preview_text(text: str, limit: int = 120) -> str:
+    """
+    Execute preview text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - limit: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     compact = " ".join(text.split())
     if len(compact) <= limit:
         return compact
@@ -333,4 +493,14 @@ def _preview_text(text: str, limit: int = 120) -> str:
 
 
 def _parse_bool(value: str) -> bool:
+    """
+    Execute parse bool.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     return value.strip().lower() in {"1", "true", "yes", "on"}

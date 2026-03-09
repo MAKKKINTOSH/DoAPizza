@@ -1,3 +1,8 @@
+"""
+This module implements logging logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -10,6 +15,13 @@ DEFAULT_LOG_FILE_PATH = "logs/nlp-service.log"
 
 
 def configure_logging() -> None:
+    """
+    Execute configure logging.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     root_logger = logging.getLogger()
     if getattr(root_logger, "_nlp_service_configured", False):
         return
@@ -40,6 +52,17 @@ def configure_logging() -> None:
 
 
 def _build_file_handler(path_value: str, level: int) -> RotatingFileHandler:
+    """
+    Execute build file handler.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - path_value: input consumed by this function while processing the current request.
+    - level: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     log_path = Path(path_value)
     if not log_path.is_absolute():
         log_path = Path.cwd() / log_path
@@ -62,6 +85,13 @@ def _build_file_handler(path_value: str, level: int) -> RotatingFileHandler:
 
 
 def _build_console_formatter() -> logging.Formatter:
+    """
+    Execute build console formatter.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     try:
         from uvicorn.logging import DefaultFormatter
 
@@ -74,6 +104,10 @@ def _build_console_formatter() -> logging.Formatter:
 
 
 class _ColorFormatter(logging.Formatter):
+    """
+    Represents ColorFormatter.
+    This class-level description documents why the type exists and how it should be used by other modules.
+    """
     COLORS = {
         logging.DEBUG: "\x1b[36m",
         logging.INFO: "\x1b[32m",
@@ -84,6 +118,16 @@ class _ColorFormatter(logging.Formatter):
     RESET = "\x1b[0m"
 
     def format(self, record: logging.LogRecord) -> str:
+        """
+        Execute format.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - record: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
         original_levelname = record.levelname
         color = self.COLORS.get(record.levelno)
         if color:

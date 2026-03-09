@@ -1,3 +1,8 @@
+"""
+This module implements state machine logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 import re
 from collections import Counter
 from typing import Iterable
@@ -6,6 +11,17 @@ from .schemas import Entities, Item, State
 
 
 def apply_pending_choice(state: State, text: str) -> tuple[State, bool, str | None]:
+    """
+    Execute apply pending choice.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if not state.pending_choice:
         return state, False, None
 
@@ -21,6 +37,17 @@ def apply_pending_choice(state: State, text: str) -> tuple[State, bool, str | No
 
 
 def merge_entities(base: Entities, incoming: Entities) -> Entities:
+    """
+    Execute merge entities.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base: input consumed by this function while processing the current request.
+    - incoming: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     merged = base.model_copy(deep=True)
 
     if incoming.items:
@@ -42,6 +69,16 @@ def merge_entities(base: Entities, incoming: Entities) -> Entities:
 
 
 def is_choice_only(text: str) -> bool:
+    """
+    Execute is choice only.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     stripped = text.strip()
     if not stripped:
         return True
@@ -57,6 +94,17 @@ def is_choice_only(text: str) -> bool:
 
 
 def is_exact_choice_reply(text: str, selected: str | None) -> bool:
+    """
+    Execute is exact choice reply.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - selected: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if selected is None:
         return False
 
@@ -75,6 +123,17 @@ def is_exact_choice_reply(text: str, selected: str | None) -> bool:
 
 
 def _match_choice(text: str, options: Iterable[str]) -> str | None:
+    """
+    Execute match choice.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - options: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     stripped = text.strip()
     opts = list(options)
     if stripped.isdigit():
@@ -102,10 +161,33 @@ def _match_choice(text: str, options: Iterable[str]) -> str | None:
 
 
 def _normalize(value: str) -> str:
+    """
+    Execute normalize.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     return re.sub(r"\s+", " ", value.strip().lower())
 
 
 def _apply_choice_value(state: State, field: str, selected: str, item_index: int | None) -> None:
+    """
+    Execute apply choice value.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+    - field: input consumed by this function while processing the current request.
+    - selected: input consumed by this function while processing the current request.
+    - item_index: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if _is_skip_option(selected):
         return
 
@@ -138,6 +220,16 @@ def _apply_choice_value(state: State, field: str, selected: str, item_index: int
 
 
 def _is_skip_text(value: str) -> bool:
+    """
+    Execute is skip text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize(value)
     return normalized in {
         "нет",
@@ -151,6 +243,16 @@ def _is_skip_text(value: str) -> bool:
 
 
 def _is_skip_option(value: str) -> bool:
+    """
+    Execute is skip option.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - value: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     normalized = _normalize(value)
     return normalized in {
         "не добавлять",
@@ -165,10 +267,32 @@ def _is_skip_option(value: str) -> bool:
 
 
 def _is_same_items(base_items: list[Item], incoming_items: list[Item]) -> bool:
+    """
+    Execute is same items.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base_items: input consumed by this function while processing the current request.
+    - incoming_items: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     return [_item_signature(item) for item in base_items] == [_item_signature(item) for item in incoming_items]
 
 
 def _looks_like_full_state_echo(base_items: list[Item], incoming_items: list[Item]) -> bool:
+    """
+    Execute looks like full state echo.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base_items: input consumed by this function while processing the current request.
+    - incoming_items: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if not base_items or len(incoming_items) < len(base_items):
         return False
     base_signatures = [_item_signature(item) for item in base_items]
@@ -177,6 +301,17 @@ def _looks_like_full_state_echo(base_items: list[Item], incoming_items: list[Ite
 
 
 def _only_repeats_existing_items(base_items: list[Item], incoming_items: list[Item]) -> bool:
+    """
+    Execute only repeats existing items.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base_items: input consumed by this function while processing the current request.
+    - incoming_items: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     if not base_items or not incoming_items:
         return False
     base_counter = Counter(_item_signature(item) for item in base_items)
@@ -185,6 +320,16 @@ def _only_repeats_existing_items(base_items: list[Item], incoming_items: list[It
 
 
 def _item_signature(item: Item) -> tuple[str, int, int | None, str | None, tuple[str, ...]]:
+    """
+    Execute item signature.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - item: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     return (
         _normalize(item.name),
         item.qty,

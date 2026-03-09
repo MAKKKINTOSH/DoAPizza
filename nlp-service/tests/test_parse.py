@@ -1,3 +1,8 @@
+"""
+This module implements test parse logic for the DoAPizza project.
+Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
+"""
+
 from fastapi.testclient import TestClient
 
 from nlp_service.app import app
@@ -6,8 +11,30 @@ from nlp_service.schemas import Choice, EditOperation, Entities, Item, State, Ti
 
 
 def test_parse_ready(monkeypatch) -> None:
+    """
+    Execute test parse ready.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(
                     items=[Item(name="Margherita", qty=1, size_cm=30)],
@@ -33,6 +60,13 @@ def test_parse_ready(monkeypatch) -> None:
 
 
 def test_llm_prompt_requires_literal_modifiers() -> None:
+    """
+    Execute test llm prompt requires literal modifiers.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     prompt = LLMClient()._user_prompt("добавь в пепперони перец", State())
 
     assert "return 'перец'" in prompt
@@ -40,6 +74,13 @@ def test_llm_prompt_requires_literal_modifiers() -> None:
 
 
 def test_llm_prompt_prioritizes_add_item_intent() -> None:
+    """
+    Execute test llm prompt prioritizes add item intent.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     prompt = LLMClient()._user_prompt("еще маргариту", State())
 
     assert "Intent priority rules are strict" in prompt
@@ -48,6 +89,16 @@ def test_llm_prompt_prioritizes_add_item_intent() -> None:
 
 
 def test_llm_auto_falls_back_to_user_only_on_system_rejection(monkeypatch) -> None:
+    """
+    Execute test llm auto falls back to user only on system rejection.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     monkeypatch.setenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_PROMPT_MODE", "auto")
@@ -56,6 +107,13 @@ def test_llm_auto_falls_back_to_user_only_on_system_rejection(monkeypatch) -> No
     calls: list[str] = []
 
     def fake_request(payload):
+        """
+        Execute fake request.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - payload: input consumed by this function while processing the current request.
+        """
         calls.append(payload["messages"][0]["role"])
         if payload["messages"][0]["role"] == "system":
             raise RuntimeError('unsupported role "system"')
@@ -70,6 +128,16 @@ def test_llm_auto_falls_back_to_user_only_on_system_rejection(monkeypatch) -> No
 
 
 def test_llm_site_headers_use_generic_env_names(monkeypatch) -> None:
+    """
+    Execute test llm site headers use generic env names.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     monkeypatch.setenv("LLM_SITE_URL", "https://example.test")
     monkeypatch.setenv("LLM_SITE_NAME", "DoAPizza")
 
@@ -82,6 +150,16 @@ def test_llm_site_headers_use_generic_env_names(monkeypatch) -> None:
 
 
 def test_llm_site_headers_keep_openrouter_aliases(monkeypatch) -> None:
+    """
+    Execute test llm site headers keep openrouter aliases.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     monkeypatch.delenv("LLM_SITE_URL", raising=False)
     monkeypatch.delenv("LLM_SITE_NAME", raising=False)
     monkeypatch.setenv("OPENROUTER_SITE_URL", "https://legacy.test")
@@ -96,6 +174,13 @@ def test_llm_site_headers_keep_openrouter_aliases(monkeypatch) -> None:
 
 
 def test_llm_parse_json_extracts_embedded_object() -> None:
+    """
+    Execute test llm parse json extracts embedded object.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     client = LLMClient()
 
     parsed = client._parse_json_with_fix('prefix {"message":"ok","confidence":1} suffix', "system", "user")
@@ -104,8 +189,30 @@ def test_llm_parse_json_extracts_embedded_object() -> None:
 
 
 def test_parse_replace_mode_updates_existing_order(monkeypatch) -> None:
+    """
+    Execute test parse replace mode updates existing order.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             assert state.entities.items[0].name == "Пепперони"
             return LLMResult(
                 entities=Entities(items=[Item(name="Маргарита", qty=1)]),
@@ -139,8 +246,30 @@ def test_parse_replace_mode_updates_existing_order(monkeypatch) -> None:
 
 
 def test_parse_skip_modifier_choice_without_llm(monkeypatch) -> None:
+    """
+    Execute test parse skip modifier choice without llm.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             raise AssertionError("LLM should not be called for skip choice")
 
     import nlp_service.parser as parser
@@ -165,9 +294,86 @@ def test_parse_skip_modifier_choice_without_llm(monkeypatch) -> None:
     assert data["choices"] is None
 
 
-def test_parse_enforces_size_question_when_llm_did_not_ask(monkeypatch) -> None:
+def test_parse_invalid_size_choice_without_llm_does_not_add_items(monkeypatch) -> None:
+    """
+    Execute test parse invalid size choice without llm does not add items.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
+            raise AssertionError("LLM should not be called for invalid numeric size choice")
+
+    import nlp_service.parser as parser
+
+    monkeypatch.setattr(parser, "LLM_CLIENT", DummyLLM())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/parse",
+        json={
+            "text": "37 см",
+            "state": State(
+                entities=Entities(items=[Item(name="Пепперони", qty=1)]),
+                missing=["size_cm"],
+                pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=0),
+            ).model_dump(),
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "ASK"
+    assert len(data["entities"]["items"]) == 1
+    assert data["entities"]["items"][0]["name"] == "Пепперони"
+    assert data["entities"]["items"][0]["qty"] == 1
+    assert data["entities"]["items"][0]["size_cm"] is None
+    assert data["choices"]["field"] == "size_cm"
+    assert data["choices"]["requested_value"] == "37 см"
+    assert data["choices"]["options"] == ["30 см", "35 см"]
+    assert "37 см не делаем" in data["message"]
+
+
+def test_parse_enforces_size_question_when_llm_did_not_ask(monkeypatch) -> None:
+    """
+    Execute test parse enforces size question when llm did not ask.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
+        def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Пепперони", qty=1)]),
                 missing=[],
@@ -190,8 +396,30 @@ def test_parse_enforces_size_question_when_llm_did_not_ask(monkeypatch) -> None:
 
 
 def test_parse_replaces_generic_llm_message_with_followup(monkeypatch) -> None:
+    """
+    Execute test parse replaces generic llm message with followup.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Пепперони", qty=1)]),
                 missing=[],
@@ -213,11 +441,40 @@ def test_parse_replaces_generic_llm_message_with_followup(monkeypatch) -> None:
 
 
 def test_parse_enforces_delivery_choice_and_address(monkeypatch) -> None:
+    """
+    Execute test parse enforces delivery choice and address.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def __init__(self) -> None:
+            """
+            Execute init.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Returns:
+            - A value derived from the current function logic and its validated inputs.
+            """
             self.calls = 0
 
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             self.calls += 1
             if self.calls == 1:
                 return LLMResult(
@@ -250,11 +507,40 @@ def test_parse_enforces_delivery_choice_and_address(monkeypatch) -> None:
 
 
 def test_parse_does_not_call_llm_for_exact_delivery_choice(monkeypatch) -> None:
+    """
+    Execute test parse does not call llm for exact delivery choice.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def __init__(self) -> None:
+            """
+            Execute init.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Returns:
+            - A value derived from the current function logic and its validated inputs.
+            """
             self.calls = 0
 
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             self.calls += 1
             if self.calls == 1:
                 return LLMResult(
@@ -281,8 +567,30 @@ def test_parse_does_not_call_llm_for_exact_delivery_choice(monkeypatch) -> None:
 
 
 def test_parse_invalid_size_returns_nearest_options(monkeypatch) -> None:
+    """
+    Execute test parse invalid size returns nearest options.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=27)]),
                 missing=[],
@@ -306,8 +614,30 @@ def test_parse_invalid_size_returns_nearest_options(monkeypatch) -> None:
 
 
 def test_parse_ignores_hallucinated_items_for_address_reply(monkeypatch) -> None:
+    """
+    Execute test parse ignores hallucinated items for address reply.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(
                     items=[Item(name="Москва, Ленина, 5", qty=1)],
@@ -342,8 +672,30 @@ def test_parse_ignores_hallucinated_items_for_address_reply(monkeypatch) -> None
 
 
 def test_merge_ignores_exact_item_echo(monkeypatch) -> None:
+    """
+    Execute test merge ignores exact item echo.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=25)]),
                 missing=["address"],
@@ -373,8 +725,30 @@ def test_merge_ignores_exact_item_echo(monkeypatch) -> None:
 
 
 def test_add_request_does_not_honor_replace_mode(monkeypatch) -> None:
+    """
+    Execute test add request does not honor replace mode.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Маргарита", qty=1, size_cm=27)]),
                 missing=[],
@@ -408,8 +782,30 @@ def test_add_request_does_not_honor_replace_mode(monkeypatch) -> None:
 
 
 def test_parse_expected_phone_rejects_short_number_without_llm(monkeypatch) -> None:
+    """
+    Execute test parse expected phone rejects short number without llm.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             raise AssertionError("LLM should not be called for obviously short phone input")
 
     import nlp_service.parser as parser
@@ -435,8 +831,30 @@ def test_parse_expected_phone_rejects_short_number_without_llm(monkeypatch) -> N
 
 
 def test_parse_expected_time_accepts_now_without_llm(monkeypatch) -> None:
+    """
+    Execute test parse expected time accepts now without llm.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             raise AssertionError("LLM should not be called for simple asap time")
 
     import nlp_service.parser as parser
@@ -465,8 +883,30 @@ def test_parse_expected_time_accepts_now_without_llm(monkeypatch) -> None:
 
 
 def test_parse_add_request_without_explicit_qty_keeps_single_added_item(monkeypatch) -> None:
+    """
+    Execute test parse add request without explicit qty keeps single added item.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Маргарита", qty=2, size_cm=27)]),
                 missing=[],
@@ -497,8 +937,30 @@ def test_parse_add_request_without_explicit_qty_keeps_single_added_item(monkeypa
 
 
 def test_parse_edit_operation_adds_modifier_to_existing_item(monkeypatch) -> None:
+    """
+    Execute test parse edit operation adds modifier to existing item.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(),
                 edit_operations=[
@@ -542,8 +1004,30 @@ def test_parse_edit_operation_adds_modifier_to_existing_item(monkeypatch) -> Non
 
 
 def test_parse_realigns_update_operation_to_named_existing_item(monkeypatch) -> None:
+    """
+    Execute test parse realigns update operation to named existing item.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(),
                 edit_operations=[
@@ -586,8 +1070,30 @@ def test_parse_realigns_update_operation_to_named_existing_item(monkeypatch) -> 
 
 
 def test_parse_falls_back_to_existing_item_update_when_llm_returns_item_snapshot(monkeypatch) -> None:
+    """
+    Execute test parse falls back to existing item update when llm returns item snapshot.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Маргарита", qty=1, modifiers=["Ананас"])]),
                 edit_operations=[],
@@ -626,8 +1132,30 @@ def test_parse_falls_back_to_existing_item_update_when_llm_returns_item_snapshot
 
 
 def test_parse_edit_operation_removes_first_item(monkeypatch) -> None:
+    """
+    Execute test parse edit operation removes first item.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(),
                 edit_operations=[EditOperation(op="remove_item", item_index=0)],
@@ -666,8 +1194,30 @@ def test_parse_edit_operation_removes_first_item(monkeypatch) -> None:
 
 
 def test_add_item_request_ignores_replace_item_edit_operation(monkeypatch) -> None:
+    """
+    Execute test add item request ignores replace item edit operation.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Маргарита", qty=1)]),
                 edit_operations=[
@@ -706,8 +1256,30 @@ def test_add_item_request_ignores_replace_item_edit_operation(monkeypatch) -> No
 
 
 def test_add_item_request_ignores_update_item_edit_operation(monkeypatch) -> None:
+    """
+    Execute test add item request ignores update item edit operation.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Пепперони", qty=1)]),
                 edit_operations=[
@@ -746,8 +1318,30 @@ def test_add_item_request_ignores_update_item_edit_operation(monkeypatch) -> Non
 
 
 def test_add_item_request_aligns_item_name_with_catalog_text(monkeypatch) -> None:
+    """
+    Execute test add item request aligns item name with catalog text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Пепперони", qty=1)]),
                 missing=[],
@@ -778,8 +1372,30 @@ def test_add_item_request_aligns_item_name_with_catalog_text(monkeypatch) -> Non
 
 
 def test_direct_order_request_aligns_item_name_with_catalog_text(monkeypatch) -> None:
+    """
+    Execute test direct order request aligns item name with catalog text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Маргарита", qty=1, size_cm=30)]),
                 missing=[],
@@ -799,8 +1415,30 @@ def test_direct_order_request_aligns_item_name_with_catalog_text(monkeypatch) ->
 
 
 def test_direct_order_request_aligns_phonetic_catalog_typo(monkeypatch) -> None:
+    """
+    Execute test direct order request aligns phonetic catalog typo.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Маргарита", qty=1, size_cm=30)]),
                 missing=[],
@@ -820,8 +1458,30 @@ def test_direct_order_request_aligns_phonetic_catalog_typo(monkeypatch) -> None:
 
 
 def test_add_item_request_does_not_inherit_size_without_explicit_size(monkeypatch) -> None:
+    """
+    Execute test add item request does not inherit size without explicit size.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
     class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
         def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
             return LLMResult(
                 entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=30)]),
                 missing=[],

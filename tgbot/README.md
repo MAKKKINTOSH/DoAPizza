@@ -2,7 +2,7 @@
 
 Telegram bot service for pizza ordering. It uses `nlp-service` as the dialogue brain and adds:
 
-- Telegram Bot API polling
+- Telegram transport via `aiogram`
 - per-chat conversation state
 - confirmation step before final submission
 - placeholder catalog validation for pizza names
@@ -51,7 +51,7 @@ Optional env vars:
 uv run python main.py
 ```
 
-The bot uses long polling and stores chat sessions in memory. If the process restarts, active conversations are lost.
+The bot uses long polling (`aiogram`) and stores chat sessions in memory. If the process restarts, active conversations are lost.
 
 ## Logging
 

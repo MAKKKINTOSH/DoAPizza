@@ -9,7 +9,6 @@ src/tgbot/nlp_client.py
 src/tgbot/order_service.py
 src/tgbot/schemas.py
 src/tgbot/session_store.py
-src/tgbot/telegram_api.py
 src/tgbot.egg-info/PKG-INFO
 src/tgbot.egg-info/SOURCES.txt
 src/tgbot.egg-info/dependency_links.txt
