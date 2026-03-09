@@ -1,0 +1,355 @@
+/* DoAPizza Admin — brand theme */
+
+/* ── Palette ──────────────────────────────────────────────── */
+
+:root {
+  --primary: #b8480f;
+  --secondary: #8c3510;
+  --accent: #e07040;
+  --primary-fg: #ffffff;
+
+  --body-fg: #1f1a17;
+  --body-bg: #f7f5f3;
+  --body-quiet-color: #6e6560;
+  --body-loud-color: #0f0c0a;
+
+  --header-color: #ffffff;
+  --header-branding-color: #f5ddd3;
+  --header-bg: #b8480f;
+  --header-link-color: #f5ddd3;
+
+  --breadcrumbs-fg: #f5ddd3;
+  --breadcrumbs-link-fg: #ffffff;
+  --breadcrumbs-bg: #8c3510;
+
+  --link-fg: #a03e0c;
+  --link-hover-color: #8c3510;
+  --link-selected-fg: #b8480f;
+
+  --hairline-color: #d4cdc8;
+  --border-color: #c8c0b8;
+
+  --error-fg: #b91c1c;
+  --message-success-bg: #f0fdf4;
+  --message-warning-bg: #fffbeb;
+  --message-error-bg: #fef2f2;
+
+  --darkened-bg: #ede9e5;
+  --selected-bg: #fdf3ee;
+  --selected-row: #fbeae0;
+
+  --button-fg: #ffffff;
+  --button-bg: #b8480f;
+  --button-hover-bg: #8c3510;
+
+  --default-button-bg: #7a7068;
+  --default-button-hover-bg: #5c5450;
+
+  --close-button-bg: #7a7068;
+  --close-button-hover-bg: #5c5450;
+
+  --delete-button-bg: #c0392b;
+  --delete-button-hover-bg: #96281b;
+
+  --object-tools-fg: #ffffff;
+  --object-tools-bg: #7a7068;
+  --object-tools-hover-bg: #5c5450;
+}
+
+/* ── Page ─────────────────────────────────────────────────── */
+
+body {
+  background: #f7f5f3;
+}
+
+.inline-group .tabular td.original p {
+  padding-bottom: 10px !important;
+}
+
+
+#header {
+  background: #b8480f;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Modules ─────────────────────────────────────────────── */
+/* Без overflow:hidden — select2/дропдауны не обрезаются */
+
+.module {
+  border-radius: 10px;
+  border: 1.5px solid #c8c0b8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+  background: #ffffff;
+}
+
+.module h2,
+.module caption {
+  border-radius: 10px 10px 0 0;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-bottom: 1.5px solid #c8c0b8;
+}
+
+/* Inline-group — отдельная карточка с overflow:hidden (нет вложенных дропдаунов) */
+.inline-group {
+  border-radius: 10px;
+  border: 1.5px solid #c8c0b8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.inline-group p{
+  height: auto;
+}
+
+.inline-group h2 {
+  border-radius: 10px 10px 0 0;
+  font-weight: 600;
+  border-bottom: 1.5px solid #c8c0b8;
+}
+
+/* ── Changelist — таблица результатов ───────────────────── */
+/* Только цвет строк и разделители — не трогаем padding/width/layout */
+
+#result_list thead th {
+  background: #ede9e5;
+  border-bottom: 2px solid #c8c0b8;
+}
+
+#result_list th a:link,
+#result_list th a:visited {
+  color: #a03e0c;
+}
+
+#result_list tbody tr {
+  border-bottom: 1px solid #d4cdc8;
+}
+
+#result_list tbody tr:last-child {
+  border-bottom: none;
+}
+
+#result_list tr.row1 { background: #ffffff; }
+#result_list tr.row2 { background: #fbf8f6; }
+
+#result_list tr.row1:hover,
+#result_list tr.row2:hover {
+  background: #fdf3ee;
+}
+
+/* ── Inline tables ───────────────────────────────────────── */
+/* Тот же минимальный подход */
+
+.inline-related table thead th {
+  background: #ede9e5;
+  border-bottom: 2px solid #c8c0b8;
+}
+
+.inline-related table tbody tr {
+  border-bottom: 1px solid #d4cdc8;
+}
+
+.inline-related table tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* ── Changelist filter sidebar ───────────────────────────── */
+
+#changelist-filter {
+  border-radius: 10px;
+  border: 1.5px solid #c8c0b8;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+}
+
+#changelist-filter h2 {
+  background: #b8480f;
+  color: #ffffff;
+  border-bottom: 1.5px solid #8c3510;
+}
+
+#changelist-filter h3 {
+  border-top: 1px solid #d4cdc8;
+}
+
+#changelist-filter li.selected a {
+  color: #b8480f;
+  font-weight: 600;
+}
+
+/* ── Nav sidebar ─────────────────────────────────────────── */
+
+#nav-sidebar {
+  background: #ffffff;
+  border-right: 1.5px solid #c8c0b8;
+}
+
+#nav-sidebar .module {
+  border: none;
+  border-bottom: 1px solid #d4cdc8;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+#nav-sidebar .module h2 {
+  border-radius: 0;
+  border-bottom: 1px solid #d4cdc8;
+}
+
+#nav-sidebar .module.current-app .section:link,
+#nav-sidebar .module.current-app .section:visited {
+  background: #fbeae0;
+  color: #b8480f;
+  font-weight: 600;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+
+.button,
+input[type="submit"],
+input[type="button"],
+.submit-row input,
+a.button {
+  border-radius: 7px;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.button:focus,
+input[type="submit"]:focus {
+  outline: 2px solid #b8480f;
+  outline-offset: 2px;
+}
+
+/* ── Action / icon buttons (FK-виджеты) ─────────────────── */
+
+.related-widget-wrapper a.related-widget-wrapper-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #ede9e5;
+  border: 1px solid #c8c0b8;
+  margin-left: 3px;
+  transition: background 0.12s, border-color 0.12s;
+  vertical-align: middle;
+}
+
+.related-widget-wrapper a.related-widget-wrapper-link:hover {
+  background: #fbeae0;
+  border-color: #b8480f;
+}
+
+.related-widget-wrapper a.related-widget-wrapper-link img {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.related-widget-wrapper a.related-widget-wrapper-link:hover img {
+  opacity: 1;
+}
+
+/* Ссылка «Изменить» в inline */
+.inlinechangelink {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: #ede9e5;
+  border: 1px solid #c8c0b8;
+  font-size: 0.78em;
+  font-weight: 500;
+  color: #5c5450;
+  text-decoration: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.inlinechangelink:hover {
+  background: #fbeae0;
+  border-color: #b8480f;
+  color: #b8480f;
+  text-decoration: none;
+}
+
+/* ── Search ──────────────────────────────────────────────── */
+
+#toolbar #searchbar,
+#changelist-search input[type="text"] {
+  border-radius: 7px;
+  border: 1.5px solid #c8c0b8;
+  background: #ffffff;
+}
+
+/* ── Form inputs ─────────────────────────────────────────── */
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+textarea,
+select {
+  border-radius: 7px;
+  border: 1.5px solid #c8c0b8;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+textarea:focus,
+select:focus {
+  border-color: #b8480f;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(184, 72, 15, 0.1);
+}
+
+/* ── Autocomplete (select2) ──────────────────────────────── */
+
+.select2-container--admin-autocomplete .select2-selection--single,
+.select2-container--admin-autocomplete .select2-selection--multiple {
+  border-radius: 7px;
+  border: 1.5px solid #c8c0b8 !important;
+}
+
+.select2-container--admin-autocomplete.select2-container--focus .select2-selection--single,
+.select2-container--admin-autocomplete.select2-container--focus .select2-selection--multiple {
+  border-color: #b8480f !important;
+  box-shadow: 0 0 0 3px rgba(184, 72, 15, 0.1);
+}
+
+/* ── Login ───────────────────────────────────────────────── */
+
+#content-main form#login-form {
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  border: 1.5px solid #c8c0b8;
+  background: #ffffff;
+}
+
+/* ── Messages ────────────────────────────────────────────── */
+
+.messagelist li {
+  border-radius: 7px;
+}
+
+.messagelist li.success {
+  background: #f0fdf4;
+  color: #166534;
+  border-left: 4px solid #22c55e;
+}
+
+.messagelist li.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-left: 4px solid #c0392b;
+}
+
+.messagelist li.warning {
+  background: #fffbeb;
+  color: #92400e;
+  border-left: 4px solid #f59e0b;
+}
