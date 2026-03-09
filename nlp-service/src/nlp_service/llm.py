@@ -113,6 +113,7 @@ class LLMClient:
             return result
         except ValidationError as exc:
             logger.error("LLM JSON schema validation failed detail=%s", exc)
+            logger.error("LLM invalid JSON payload=%s", data)
             logger.debug("LLM JSON schema validation stack", exc_info=True)
             raise LLMError(f"LLM JSON schema validation failed: {exc}") from exc
 

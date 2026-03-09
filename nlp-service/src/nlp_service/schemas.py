@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Item(BaseModel):
@@ -53,6 +53,53 @@ class Choice(BaseModel):
     options: list[str] = Field(default_factory=list)
     item_index: int | None = None
     requested_value: str | None = None
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def _normalize_options(cls, value: object) -> object:
+        """
+        Execute normalize options.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - value: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return value
+
+        normalized: list[str] = []
+        for option in value:
+            if option is None:
+                continue
+            if isinstance(option, str):
+                normalized.append(option.strip())
+                continue
+            normalized.append(str(option))
+        return normalized
+
+    @field_validator("requested_value", mode="before")
+    @classmethod
+    def _normalize_requested_value(cls, value: object) -> object:
+        """
+        Execute normalize requested value.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - value: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value.strip()
+        return str(value)
 
 
 class EditOperation(BaseModel):

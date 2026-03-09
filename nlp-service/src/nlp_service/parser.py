@@ -3,8 +3,11 @@ This module implements parser logic for the DoAPizza project.
 Detailed docstrings are intentionally verbose so each code block is easier to explain during reviews.
 """
 
+from __future__ import annotations
+
 import os
 import re
+from typing import Literal
 
 import httpx
 
@@ -41,27 +44,53 @@ def parse_text(text: str, state: State | None) -> ParseResponse:
             message = "Принял выбор."
 
     call_llm = True
+    intent: IntentKind = _classify_request_intent(text, current_state)
     if choice_applied and (is_choice_only(text) or is_exact_choice_reply(text, selected_choice)):
         call_llm = False
+        intent = "choice_reply"
 
     size_choice_handled, size_message = _apply_expected_size_choice_input(current_state, text)
     if size_choice_handled:
         call_llm = False
+        intent = "choice_reply"
         message = size_message or message
 
     scalar_applied, scalar_message = _apply_expected_scalar_input(current_state, text)
     if scalar_applied:
         call_llm = False
+        intent = "checkout_scalar"
         message = scalar_message or message
 
     if call_llm:
+        ambiguous_prompt = _build_ambiguous_item_prompt(text, current_state, intent)
+        if ambiguous_prompt is not None:
+            return _build_ask_response(current_state, ambiguous_prompt, confidence)
+
+    if call_llm:
         llm_result = LLM_CLIENT.extract(text, current_state)
-        llm_result = _align_result_with_catalog(text, llm_result)
+        llm_result = _align_result_with_catalog(text, llm_result, intent)
         llm_result = _align_edit_operations_with_state(text, current_state, llm_result)
-        llm_result = _strip_implicit_size_from_additions(text, llm_result)
-        filtered_operations = _filter_edit_operations_for_text(current_state, llm_result.edit_operations, text)
-        fallback_operations = _infer_item_update_operations(current_state, llm_result.entities, text)
-        if filtered_operations:
+        llm_result = _strip_implicit_size_from_additions(text, current_state, llm_result, intent)
+        filtered_operations = _filter_edit_operations_for_text(current_state, llm_result.edit_operations, text, intent)
+        fallback_operations = _infer_item_update_operations(current_state, llm_result.entities, text, intent)
+        if intent == "add_item":
+            updated_entities, applied_additions, had_unsafe_mutation = _apply_safe_add_intent_entities(
+                current_state.entities,
+                llm_result,
+                text,
+            )
+            if applied_additions == 0:
+                clarification = (
+                    "Не понял, какую пиццу добавить. "
+                    "Уточните название пиццы и, если нужно, размер."
+                )
+                if had_unsafe_mutation:
+                    clarification = "Для добавления новой позиции напишите только, что добавить: название, количество и размер."
+                return _build_ask_response(current_state, clarification, llm_result.confidence or confidence)
+            current_state.entities = _merge_scalar_fields(updated_entities, llm_result.entities)
+            current_state.pending_choice = None
+            current_state.missing = []
+        elif filtered_operations:
             current_state.entities = _apply_edit_operations(current_state.entities, filtered_operations)
             current_state.entities = _merge_scalar_fields(current_state.entities, llm_result.entities)
         elif fallback_operations:
@@ -72,10 +101,15 @@ def parse_text(text: str, state: State | None) -> ParseResponse:
         else:
             sanitized_entities = _sanitize_incoming_entities(current_state, llm_result.entities, text)
             current_state.entities = merge_entities(current_state.entities, sanitized_entities)
-        current_state.missing = list(llm_result.missing or [])
-        current_state.pending_choice = llm_result.choices
+            current_state.missing = list(llm_result.missing or [])
+            current_state.pending_choice = llm_result.choices
+        if intent != "add_item":
+            current_state.missing = list(llm_result.missing or [])
+            current_state.pending_choice = llm_result.choices
         message = llm_result.message or message
         confidence = llm_result.confidence or confidence
+
+    current_state.entities.items = _consolidate_line_items(current_state.entities.items)
 
     _maybe_call_delivery_api(current_state.entities)
 
@@ -130,12 +164,420 @@ def _maybe_call_delivery_api(entities: Entities) -> None:
         return
 
 
+def _build_ask_response(state: State, message: str, confidence: float) -> ParseResponse:
+    """
+    Execute build ask response.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - state: input consumed by this function while processing the current request.
+    - message: input consumed by this function while processing the current request.
+    - confidence: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    snapshot = state.model_copy(deep=True)
+    return ParseResponse(
+        action="ASK",
+        message=message,
+        entities=snapshot.entities,
+        missing=snapshot.missing,
+        choices=snapshot.pending_choice,
+        state=snapshot,
+        confidence=confidence,
+    )
+
+
+def _classify_request_intent(text: str, state: State) -> IntentKind:
+    """
+    Execute classify request intent.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    if state.pending_choice is not None and is_choice_only(text):
+        return "choice_reply"
+
+    expected_scalar = _expected_scalar_field(state)
+    if expected_scalar == "address" and _looks_like_address(text):
+        return "checkout_scalar"
+    if expected_scalar == "phone" and _looks_like_phone(text):
+        return "checkout_scalar"
+    if expected_scalar == "time" and _looks_like_time(text):
+        return "checkout_scalar"
+
+    if _looks_like_remove_or_replace_request(text):
+        return "remove_or_replace"
+    if _looks_like_existing_item_update_request(text):
+        return "edit_existing"
+    if _looks_like_add_item_request(text) or _looks_like_bare_catalog_add_request(text, state):
+        return "add_item"
+    return "unknown"
+
+
+def _looks_like_remove_or_replace_request(text: str) -> bool:
+    """
+    Execute looks like remove or replace request.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    normalized = _normalize_text(text)
+    mentioned_catalog = _extract_catalog_pizzas_from_text(text)
+    if "замени" in normalized or "вместо" in normalized:
+        return True
+    if (
+        ("удали" in normalized or "убери" in normalized)
+        and mentioned_catalog
+        and " из " not in normalized
+    ):
+        return True
+    if ("удали" in normalized or "убери" in normalized) and any(
+        marker in normalized for marker in ("пицц", "позиц", "перв", "втор", "треть", "четвер", "#")
+    ):
+        return True
+    return False
+
+
+def _looks_like_bare_catalog_add_request(text: str, state: State) -> bool:
+    """
+    Execute looks like bare catalog add request.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - state: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    if not state.entities.items:
+        return False
+    if _looks_like_remove_or_replace_request(text):
+        return False
+    if _looks_like_existing_item_update_request(text):
+        return False
+    if is_choice_only(text):
+        return False
+    return bool(_extract_catalog_pizzas_from_text(text))
+
+
+def _build_ambiguous_item_prompt(text: str, state: State, intent: IntentKind) -> str | None:
+    """
+    Execute build ambiguous item prompt.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - state: input consumed by this function while processing the current request.
+    - intent: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    if intent not in {"edit_existing", "remove_or_replace"}:
+        return None
+    if len(state.entities.items) < 2:
+        return None
+
+    explicit_index = _extract_explicit_item_index(text, len(state.entities.items))
+    if explicit_index is not None:
+        return None
+
+    mentioned = _extract_catalog_pizzas_from_text(text)
+    if len(mentioned) == 1:
+        target_name = mentioned[0]
+        duplicate_indexes = [
+            index
+            for index, item in enumerate(state.entities.items)
+            if _normalize_name_for_catalog(item.name) == _normalize_name_for_catalog(target_name)
+        ]
+        if len(duplicate_indexes) <= 1:
+            return None
+        readable_indexes = ", ".join(str(index + 1) for index in duplicate_indexes)
+        return (
+            f"Уточните номер позиции для '{target_name}': {readable_indexes}. "
+            "Например: «измени 2-ю пиццу»."
+        )
+
+    if not mentioned:
+        return "Уточните номер позиции (1, 2, ...), которую нужно изменить."
+    return None
+
+
+def _extract_explicit_item_index(text: str, items_count: int) -> int | None:
+    """
+    Execute extract explicit item index.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+    - items_count: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    normalized = _normalize_text(text)
+
+    hash_match = re.search(r"#\s*(\d+)", normalized)
+    if hash_match:
+        index = int(hash_match.group(1)) - 1
+        if 0 <= index < items_count:
+            return index
+
+    ordinal_words = (
+        (r"\bперв\w*\b", 0),
+        (r"\bвтор\w*\b", 1),
+        (r"\bтреть\w*\b", 2),
+        (r"\bчетвер\w*\b", 3),
+        (r"\bпят\w*\b", 4),
+    )
+    for pattern, index in ordinal_words:
+        if re.search(pattern, normalized) and 0 <= index < items_count:
+            return index
+
+    numeric_match = re.search(r"\b(\d+)\s*[-]?(?:я|й|ю|ая|ую)?\s*(?:пицц\w*|позиц\w*)", normalized)
+    if numeric_match:
+        index = int(numeric_match.group(1)) - 1
+        if 0 <= index < items_count:
+            return index
+
+    return None
+
+
+def _apply_safe_add_intent_entities(base: Entities, llm_result, text: str) -> tuple[Entities, int, bool]:
+    """
+    Execute apply safe add intent entities.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base: input consumed by this function while processing the current request.
+    - llm_result: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    unsafe = any(operation.op != "add_item" for operation in llm_result.edit_operations)
+
+    additions = _extract_multisize_additions(text)
+    if additions:
+        additions = _normalize_addition_items_for_text(additions, text, allow_large_qty=True)
+    else:
+        op_additions = [operation.item.model_copy(deep=True) for operation in llm_result.edit_operations if operation.op == "add_item" and operation.item is not None]
+        if op_additions:
+            additions = _normalize_addition_items_for_text(op_additions, text, allow_large_qty=False)
+        else:
+            entity_additions, entity_unsafe = _extract_entity_additions(base.items, llm_result.entities.items)
+            unsafe = unsafe or entity_unsafe
+            additions = _normalize_addition_items_for_text(entity_additions, text, allow_large_qty=False)
+
+    if not additions:
+        return base.model_copy(deep=True), 0, unsafe
+
+    mentioned = _extract_catalog_pizzas_from_text(text)
+    if len(mentioned) == 1:
+        for addition in additions:
+            addition.name = mentioned[0]
+
+    updated = base.model_copy(deep=True)
+    total_added_qty = 0
+    for addition in additions:
+        total_added_qty += max(addition.qty, 1)
+        _apply_addition(updated.items, addition)
+    return updated, total_added_qty, unsafe
+
+
+def _extract_multisize_additions(text: str) -> list[Item]:
+    """
+    Execute extract multisize additions.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - text: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    mentioned = _extract_catalog_pizzas_from_text(text)
+    if len(mentioned) != 1:
+        return []
+
+    normalized = _normalize_text(text)
+    marker_match = re.search(r"(?:размер(?:ы)?|:)\s*([0-9,\s;/и]+)", normalized)
+    if marker_match is None:
+        return []
+
+    sizes = [int(value) for value in re.findall(r"\d{2,3}", marker_match.group(1))]
+    if len(sizes) < 2:
+        return []
+
+    return [Item(name=mentioned[0], qty=1, size_cm=size) for size in sizes]
+
+
+def _extract_entity_additions(base_items: list[Item], incoming_items: list[Item]) -> tuple[list[Item], bool]:
+    """
+    Execute extract entity additions.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - base_items: input consumed by this function while processing the current request.
+    - incoming_items: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    base_qty, _ = _build_config_qty_map(base_items)
+    incoming_qty, incoming_samples = _build_config_qty_map(incoming_items)
+
+    unsafe = False
+    additions: list[Item] = []
+    for key, qty in incoming_qty.items():
+        delta = qty - base_qty.get(key, 0)
+        if delta <= 0:
+            continue
+        sample = incoming_samples[key].model_copy(deep=True)
+        sample.qty = delta
+        additions.append(sample)
+
+    for key, qty in base_qty.items():
+        if incoming_qty.get(key, 0) < qty:
+            unsafe = True
+            break
+
+    return additions, unsafe
+
+
+def _build_config_qty_map(items: list[Item]) -> tuple[dict[tuple[str, int | None, str | None, tuple[str, ...]], int], dict[tuple[str, int | None, str | None, tuple[str, ...]], Item]]:
+    """
+    Execute build config qty map.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - items: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    qty_map: dict[tuple[str, int | None, str | None, tuple[str, ...]], int] = {}
+    sample_map: dict[tuple[str, int | None, str | None, tuple[str, ...]], Item] = {}
+    for item in items:
+        key = _item_config_key(item)
+        qty_map[key] = qty_map.get(key, 0) + max(item.qty, 1)
+        sample_map.setdefault(key, item)
+    return qty_map, sample_map
+
+
+def _item_config_key(item: Item) -> tuple[str, int | None, str | None, tuple[str, ...]]:
+    """
+    Execute item config key.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - item: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    normalized_variant = _normalize_text(item.variant) if item.variant else None
+    normalized_modifiers = tuple(sorted(_normalize_text(value) for value in item.modifiers))
+    return (_normalize_name_for_catalog(item.name), item.size_cm, normalized_variant, normalized_modifiers)
+
+
+def _normalize_addition_items_for_text(items: list[Item], text: str, allow_large_qty: bool) -> list[Item]:
+    """
+    Execute normalize addition items for text.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - items: input consumed by this function while processing the current request.
+    - text: input consumed by this function while processing the current request.
+    - allow_large_qty: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    normalized: list[Item] = []
+    has_explicit_qty = _has_explicit_item_quantity(text)
+    for item in items:
+        updated = item.model_copy(deep=True)
+        updated.qty = max(updated.qty, 1)
+        if updated.qty > 1 and not allow_large_qty and not has_explicit_qty:
+            updated.qty = 1
+        normalized.append(updated)
+    return normalized
+
+
+def _apply_addition(items: list[Item], addition: Item) -> None:
+    """
+    Execute apply addition.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - items: input consumed by this function while processing the current request.
+    - addition: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    if addition.size_cm is not None:
+        key = _item_config_key(addition)
+        for existing in items:
+            if _item_config_key(existing) == key and existing.size_cm is not None:
+                existing.qty = max(existing.qty, 1) + max(addition.qty, 1)
+                return
+    items.append(addition.model_copy(deep=True))
+
+
+def _consolidate_line_items(items: list[Item]) -> list[Item]:
+    """
+    Execute consolidate line items.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - items: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    consolidated: list[Item] = []
+    index_by_key: dict[tuple[str, int | None, str | None, tuple[str, ...]], int] = {}
+    for item in items:
+        candidate = item.model_copy(deep=True)
+        candidate.qty = max(candidate.qty, 1)
+        if candidate.size_cm is None:
+            consolidated.append(candidate)
+            continue
+
+        key = _item_config_key(candidate)
+        if key in index_by_key:
+            existing = consolidated[index_by_key[key]]
+            existing.qty = max(existing.qty, 1) + candidate.qty
+            continue
+
+        index_by_key[key] = len(consolidated)
+        consolidated.append(candidate)
+
+    return consolidated
+
+
 __all__ = ["parse_text", "LLMError"]
 
 
 SIZE_OPTIONS = ["25 см", "30 см", "35 см"]
 DELIVERY_TYPE_OPTIONS = ["Доставка", "Самовывоз"]
 ALLOWED_SIZE_CM = [25, 30, 35]
+IntentKind = Literal["add_item", "edit_existing", "remove_or_replace", "choice_reply", "checkout_scalar", "unknown"]
 
 
 def _enforce_required_order_flow(state: State) -> State:
@@ -354,14 +796,20 @@ def _choice_message(state: State) -> str:
                     f"{choice.requested_value} не делаем. Могу предложить {options}. "
                     f"Советую {recommended}."
                 )
+        if item and choice.item_index is not None:
+            return f"Какой размер выбрать для позиции {choice.item_index + 1} ('{item.name}')?"
         name = item.name if item else "этой пиццы"
         return f"Какой размер выбрать для '{name}'?"
     if choice.field == "delivery_type":
         return "Как получить заказ?"
     if choice.field == "variant":
+        if item and choice.item_index is not None:
+            return f"Какой вариант выбрать для позиции {choice.item_index + 1} ('{item.name}')?"
         name = item.name if item else "пиццы"
         return f"Какой вариант выбрать для '{name}'?"
     if choice.field == "modifiers":
+        if item and choice.item_index is not None:
+            return f"Нужны ли добавки для позиции {choice.item_index + 1} ('{item.name}')?"
         name = item.name if item else "пиццы"
         return f"Нужны ли добавки для '{name}'?"
     if choice.options:
@@ -480,7 +928,7 @@ def _apply_edit_operations(entities: Entities, operations: list[EditOperation]) 
     return updated
 
 
-def _align_result_with_catalog(text: str, llm_result) -> object:
+def _align_result_with_catalog(text: str, llm_result, intent: IntentKind) -> object:
     """
     Execute align result with catalog.
     This function-level documentation is intentionally explicit to simplify line-by-line explanations.
@@ -497,7 +945,7 @@ def _align_result_with_catalog(text: str, llm_result) -> object:
         return llm_result
 
     aligned = llm_result.model_copy(deep=True)
-    if _looks_like_add_item_request(text):
+    if intent == "add_item":
         if len(mentioned) == 1 and len(aligned.entities.items) == 1:
             aligned.entities.items[0].name = mentioned[0]
         for operation in aligned.edit_operations:
@@ -524,13 +972,14 @@ def _align_edit_operations_with_state(text: str, state: State, llm_result) -> ob
     if not llm_result.edit_operations or not state.entities.items:
         return llm_result
 
-    mentioned = _extract_catalog_pizzas_from_text(text)
-    if len(mentioned) != 1:
-        return llm_result
-
-    target_index = _find_matching_existing_item_index(state.entities.items, mentioned[0])
+    target_index = _extract_explicit_item_index(text, len(state.entities.items))
     if target_index is None:
-        return llm_result
+        mentioned = _extract_catalog_pizzas_from_text(text)
+        if len(mentioned) != 1:
+            return llm_result
+        target_index = _find_matching_existing_item_index(state.entities.items, mentioned[0])
+        if target_index is None:
+            return llm_result
 
     aligned = llm_result.model_copy(deep=True)
     for operation in aligned.edit_operations:
@@ -540,7 +989,7 @@ def _align_edit_operations_with_state(text: str, state: State, llm_result) -> ob
     return aligned
 
 
-def _strip_implicit_size_from_additions(text: str, llm_result) -> object:
+def _strip_implicit_size_from_additions(text: str, state: State, llm_result, intent: IntentKind) -> object:
     """
     Execute strip implicit size from additions.
     This function-level documentation is intentionally explicit to simplify line-by-line explanations.
@@ -552,21 +1001,77 @@ def _strip_implicit_size_from_additions(text: str, llm_result) -> object:
     Returns:
     - A value derived from the current function logic and its validated inputs.
     """
-    if not _looks_like_add_item_request(text) or _has_explicit_size_mention(text):
+    if intent != "add_item":
+        return llm_result
+
+    if _has_explicit_size_mention(text) or _looks_like_explicit_edit(text):
         return llm_result
 
     stripped = llm_result.model_copy(deep=True)
-    for item in stripped.entities.items:
-        item.size_cm = None
+    changed = _strip_size_from_new_incoming_items(state.entities.items, stripped.entities.items)
 
     for operation in stripped.edit_operations:
         if operation.op == "add_item" and operation.item is not None:
-            operation.item.size_cm = None
+            if operation.item.size_cm is not None:
+                operation.item.size_cm = None
+                changed = True
 
+    if not changed:
+        return llm_result
     return stripped
 
 
-def _filter_edit_operations_for_text(state: State, operations: list[EditOperation], text: str) -> list[EditOperation]:
+def _strip_size_from_new_incoming_items(current_items: list[Item], incoming_items: list[Item]) -> bool:
+    """
+    Execute strip size from new incoming items.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - current_items: input consumed by this function while processing the current request.
+    - incoming_items: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    existing_counts: dict[tuple[str, int, str | None, tuple[str, ...]], int] = {}
+    for item in current_items:
+        key = _item_key_without_size(item)
+        existing_counts[key] = existing_counts.get(key, 0) + 1
+
+    changed = False
+    for item in incoming_items:
+        key = _item_key_without_size(item)
+        if existing_counts.get(key, 0) > 0:
+            existing_counts[key] -= 1
+            continue
+        if item.size_cm is not None:
+            item.size_cm = None
+            changed = True
+    return changed
+
+
+def _item_key_without_size(item: Item) -> tuple[str, int, str | None, tuple[str, ...]]:
+    """
+    Execute item key without size.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - item: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    normalized_variant = _normalize_text(item.variant) if item.variant else None
+    normalized_modifiers = tuple(_normalize_text(value) for value in item.modifiers)
+    return (_normalize_text(item.name), item.qty, normalized_variant, normalized_modifiers)
+
+
+def _filter_edit_operations_for_text(
+    state: State,
+    operations: list[EditOperation],
+    text: str,
+    intent: IntentKind,
+) -> list[EditOperation]:
     """
     Execute filter edit operations for text.
     This function-level documentation is intentionally explicit to simplify line-by-line explanations.
@@ -582,7 +1087,7 @@ def _filter_edit_operations_for_text(state: State, operations: list[EditOperatio
     if not operations:
         return operations
 
-    if not _looks_like_add_item_request(text):
+    if intent != "add_item":
         return operations
 
     # For "add another pizza" requests, never let model rewrite or delete existing items.
@@ -595,7 +1100,7 @@ def _filter_edit_operations_for_text(state: State, operations: list[EditOperatio
     return []
 
 
-def _infer_item_update_operations(state: State, incoming: Entities, text: str) -> list[EditOperation]:
+def _infer_item_update_operations(state: State, incoming: Entities, text: str, intent: IntentKind) -> list[EditOperation]:
     """
     Execute infer item update operations.
     This function-level documentation is intentionally explicit to simplify line-by-line explanations.
@@ -608,7 +1113,7 @@ def _infer_item_update_operations(state: State, incoming: Entities, text: str) -
     Returns:
     - A value derived from the current function logic and its validated inputs.
     """
-    if _looks_like_add_item_request(text):
+    if intent == "add_item":
         return []
     if not _looks_like_existing_item_update_request(text):
         return []
@@ -616,7 +1121,9 @@ def _infer_item_update_operations(state: State, incoming: Entities, text: str) -
         return []
 
     incoming_item = incoming.items[0]
-    item_index = _find_matching_existing_item_index(state.entities.items, incoming_item.name)
+    item_index = _extract_explicit_item_index(text, len(state.entities.items))
+    if item_index is None:
+        item_index = _find_matching_existing_item_index(state.entities.items, incoming_item.name)
     if item_index is None:
         return []
 

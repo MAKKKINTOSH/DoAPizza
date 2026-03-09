@@ -188,6 +188,36 @@ def test_llm_parse_json_extracts_embedded_object() -> None:
     assert parsed == {"message": "ok", "confidence": 1}
 
 
+def test_llm_result_coerces_choice_options_to_strings() -> None:
+    """
+    Execute test llm result coerces choice options to strings.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    result = LLMResult.model_validate(
+        {
+            "entities": {},
+            "edit_operations": [],
+            "missing": ["size_cm"],
+            "choices": {
+                "field": "size_cm",
+                "options": [30, "35", 40],
+                "item_index": 0,
+                "requested_value": 35,
+            },
+            "message": "",
+            "confidence": 0.7,
+            "state_update_mode": "merge",
+        }
+    )
+
+    assert result.choices is not None
+    assert result.choices.options == ["30", "35", "40"]
+    assert result.choices.requested_value == "35"
+
+
 def test_parse_replace_mode_updates_existing_order(monkeypatch) -> None:
     """
     Execute test parse replace mode updates existing order.
@@ -1511,3 +1541,342 @@ def test_add_item_request_does_not_inherit_size_without_explicit_size(monkeypatc
     assert data["entities"]["items"][1]["name"] == "Маргарита"
     assert data["entities"]["items"][1]["size_cm"] is None
     assert data["choices"]["field"] == "size_cm"
+
+
+def test_catalog_only_addition_does_not_inherit_size_without_explicit_size(monkeypatch) -> None:
+    """
+    Execute test catalog only addition does not inherit size without explicit size.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
+        def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
+            return LLMResult(
+                entities=Entities(
+                    items=[
+                        Item(name="Пепперони", qty=1, size_cm=30),
+                        Item(name="Маргарита", qty=1, size_cm=30),
+                    ]
+                ),
+                missing=[],
+                choices=None,
+                message="",
+                confidence=0.84,
+            )
+
+    import nlp_service.parser as parser
+
+    monkeypatch.setattr(parser, "LLM_CLIENT", DummyLLM())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/parse",
+        json={
+            "text": "марнарина",
+            "state": State(
+                entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=30)]),
+                missing=[],
+                pending_choice=None,
+            ).model_dump(),
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entities"]["items"]) == 2
+    assert data["entities"]["items"][0]["size_cm"] == 30
+    assert data["entities"]["items"][1]["name"] == "Маргарита"
+    assert data["entities"]["items"][1]["size_cm"] is None
+    assert data["choices"]["field"] == "size_cm"
+    assert data["choices"]["item_index"] == 1
+
+
+def test_parse_ambiguous_duplicate_edit_requires_item_reference(monkeypatch) -> None:
+    """
+    Execute test parse ambiguous duplicate edit requires item reference.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
+        def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
+            raise AssertionError("LLM should not be called for ambiguous duplicate edit without item reference")
+
+    import nlp_service.parser as parser
+
+    monkeypatch.setattr(parser, "LLM_CLIENT", DummyLLM())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/parse",
+        json={
+            "text": "убери пепперони",
+            "state": State(
+                entities=Entities(
+                    items=[
+                        Item(name="Пепперони", qty=1, size_cm=30),
+                        Item(name="Пепперони", qty=1, size_cm=35),
+                    ]
+                ),
+                missing=[],
+                pending_choice=None,
+            ).model_dump(),
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "ASK"
+    assert "Уточните номер позиции" in data["message"]
+    assert len(data["entities"]["items"]) == 2
+
+
+def test_parse_add_intent_merges_same_config_to_qty(monkeypatch) -> None:
+    """
+    Execute test parse add intent merges same config to qty.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
+        def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
+            return LLMResult(
+                entities=Entities(items=[Item(name="Пепперони", qty=2, size_cm=30)]),
+                missing=[],
+                choices=None,
+                message="",
+                confidence=0.86,
+            )
+
+    import nlp_service.parser as parser
+
+    monkeypatch.setattr(parser, "LLM_CLIENT", DummyLLM())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/parse",
+        json={
+            "text": "еще пепперони 30 см",
+            "state": State(
+                entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=30)]),
+                missing=[],
+                pending_choice=None,
+            ).model_dump(),
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entities"]["items"]) == 1
+    assert data["entities"]["items"][0]["name"] == "Пепперони"
+    assert data["entities"]["items"][0]["qty"] == 2
+    assert data["entities"]["items"][0]["size_cm"] == 30
+
+
+def test_parse_add_intent_keeps_different_sizes_separate(monkeypatch) -> None:
+    """
+    Execute test parse add intent keeps different sizes separate.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
+        def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
+            return LLMResult(
+                entities=Entities(
+                    items=[
+                        Item(name="Пепперони", qty=1, size_cm=30),
+                        Item(name="Пепперони", qty=1, size_cm=35),
+                    ]
+                ),
+                missing=[],
+                choices=None,
+                message="",
+                confidence=0.84,
+            )
+
+    import nlp_service.parser as parser
+
+    monkeypatch.setattr(parser, "LLM_CLIENT", DummyLLM())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/parse",
+        json={
+            "text": "еще пепперони 35 см",
+            "state": State(
+                entities=Entities(items=[Item(name="Пепперони", qty=1, size_cm=30)]),
+                missing=[],
+                pending_choice=None,
+            ).model_dump(),
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entities"]["items"]) == 2
+    assert data["entities"]["items"][0]["size_cm"] == 30
+    assert data["entities"]["items"][1]["size_cm"] == 35
+    assert data["entities"]["items"][0]["qty"] == 1
+    assert data["entities"]["items"][1]["qty"] == 1
+
+
+def test_parse_add_intent_multisize_message_builds_multiple_lines(monkeypatch) -> None:
+    """
+    Execute test parse add intent multisize message builds multiple lines.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
+        def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
+            return LLMResult(
+                entities=Entities(),
+                missing=[],
+                choices=None,
+                message="",
+                confidence=0.82,
+            )
+
+    import nlp_service.parser as parser
+
+    monkeypatch.setattr(parser, "LLM_CLIENT", DummyLLM())
+    client = TestClient(app)
+    response = client.post("/v1/parse", json={"text": "добавь 3 пепперони: 25, 30, 35"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entities"]["items"]) == 3
+    assert [item["size_cm"] for item in data["entities"]["items"]] == [25, 30, 35]
+
+
+def test_parse_explicit_item_reference_updates_target_index(monkeypatch) -> None:
+    """
+    Execute test parse explicit item reference updates target index.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Parameters:
+    - monkeypatch: input consumed by this function while processing the current request.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    class DummyLLM:
+        """
+        Represents DummyLLM.
+        This class-level description documents why the type exists and how it should be used by other modules.
+        """
+        def extract(self, text, state):
+            """
+            Execute extract.
+            This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+            Parameters:
+            - text: input consumed by this function while processing the current request.
+            - state: input consumed by this function while processing the current request.
+            """
+            return LLMResult(
+                entities=Entities(),
+                edit_operations=[EditOperation(op="update_item", item_index=0, size_cm=35)],
+                missing=[],
+                choices=None,
+                message="",
+                confidence=0.9,
+            )
+
+    import nlp_service.parser as parser
+
+    monkeypatch.setattr(parser, "LLM_CLIENT", DummyLLM())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/parse",
+        json={
+            "text": "сделай #2 пиццу 35 см",
+            "state": State(
+                entities=Entities(
+                    items=[
+                        Item(name="Пепперони", qty=1, size_cm=30),
+                        Item(name="Пепперони", qty=1, size_cm=25),
+                    ]
+                ),
+                missing=[],
+                pending_choice=None,
+            ).model_dump(),
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["entities"]["items"][0]["size_cm"] == 30
+    assert data["entities"]["items"][1]["size_cm"] == 35

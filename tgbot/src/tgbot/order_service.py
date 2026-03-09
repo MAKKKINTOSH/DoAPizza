@@ -377,6 +377,8 @@ class OrderService:
         updated.action = "ASK"
         if not updated.entities.items:
             updated.message = "Напишите, какую пиццу хотите заказать."
+        elif updated.action == "ASK" and updated.message.strip():
+            updated.message = updated.message.strip()
         else:
             updated.message = ""
         return updated
@@ -397,6 +399,9 @@ class OrderService:
 
         if not parse_result.entities.items:
             return self._section("Соберем заказ", "Напишите, какую пиццу хотите заказать.")
+
+        if parse_result.message.strip():
+            return self._build_progress_message(parse_result.message, parse_result.entities)
 
         return self._section(
             "Сейчас в заказе",
@@ -565,6 +570,7 @@ class OrderService:
         - A value derived from the current function logic and its validated inputs.
         """
         updated = state.model_copy(deep=True)
+        updated.entities.items = self._consolidate_sized_items(updated.entities.items)
         if updated.pending_choice is not None:
             return updated
 
@@ -581,6 +587,40 @@ class OrderService:
 
         updated.missing = [field for field in updated.missing if field not in {"size_cm", "variant", "modifiers"}]
         return updated
+
+    def _consolidate_sized_items(self, items: list[Item]) -> list[Item]:
+        """
+        Execute consolidate sized items.
+        This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+        Parameters:
+        - items: input consumed by this function while processing the current request.
+
+        Returns:
+        - A value derived from the current function logic and its validated inputs.
+        """
+        consolidated: list[Item] = []
+        by_key: dict[tuple[str, int, str | None, tuple[str, ...]], int] = {}
+        for item in items:
+            candidate = item.model_copy(deep=True)
+            candidate.qty = max(candidate.qty, 1)
+            if candidate.size_cm is None:
+                consolidated.append(candidate)
+                continue
+
+            key = (
+                self._normalize_choice_text(candidate.name),
+                candidate.size_cm,
+                self._normalize_choice_text(candidate.variant) if candidate.variant else None,
+                tuple(sorted(self._normalize_choice_text(value) for value in candidate.modifiers)),
+            )
+            existing_index = by_key.get(key)
+            if existing_index is None:
+                by_key[key] = len(consolidated)
+                consolidated.append(candidate)
+                continue
+            consolidated[existing_index].qty += candidate.qty
+        return consolidated
 
     def _keyboard_for_session(self, session, parse_result: ParseResponse | None = None) -> list[list[str]] | None:
         """
@@ -1284,12 +1324,13 @@ class OrderService:
             return parse_result.message
 
         item = parse_result.entities.items[choice.item_index]
+        position = choice.item_index + 1
         if choice.field == "size_cm" and choice.requested_value is None:
-            return f"Какой размер выбрать для '{item.name}'?"
+            return f"Какой размер выбрать для позиции {position} ('{item.name}')?"
         if choice.field == "modifiers":
-            return f"Нужны ли добавки для '{item.name}'?"
+            return f"Нужны ли добавки для позиции {position} ('{item.name}')?"
         if choice.field == "variant":
-            return f"Какой вариант выбрать для '{item.name}'?"
+            return f"Какой вариант выбрать для позиции {position} ('{item.name}')?"
         return parse_result.message
 
     def _try_start_order_without_nlp(self, chat_id: int, session, text: str) -> BotReply | None:

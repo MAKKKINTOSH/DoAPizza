@@ -151,7 +151,8 @@ def test_ask_flow_returns_choice_keyboard() -> None:
     reply = service.handle_message(10, "Маргарита")
 
     assert "Сейчас в заказе" in reply.text
-    assert "Какой размер Маргариты?" in reply.text
+    assert "позиции 1" in reply.text
+    assert "Маргарита" in reply.text
     assert reply.reply_keyboard == [["25 см"], ["30 см"], ["Сбросить заказ"]]
     assert store.get(10).awaiting_confirmation is False
 
@@ -183,6 +184,41 @@ def test_pending_size_choice_is_applied_locally_without_nlp() -> None:
     assert "30 см" in reply.text
     assert "Все выбрал" in reply.text
     assert saved.state.entities.items[0].size_cm == 30
+    assert saved.state.pending_choice is None
+
+
+def test_pending_size_choice_merges_identical_sized_lines() -> None:
+    """
+    Execute test pending size choice merges identical sized lines.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    service, store = build_service_with_client(FailingNLPClient())
+    store.save(
+        111,
+        ConversationSession(
+            state=State(
+                entities=Entities(
+                    items=[
+                        Item(name="Пепперони", qty=1, size_cm=30),
+                        Item(name="Пепперони", qty=1, size_cm=None),
+                    ]
+                ),
+                missing=["size_cm"],
+                pending_choice=Choice(field="size_cm", options=["25 см", "30 см", "35 см"], item_index=1),
+            )
+        ),
+    )
+
+    service.handle_message(111, "30 см")
+    saved = store.get(111)
+
+    assert len(saved.state.entities.items) == 1
+    assert saved.state.entities.items[0].name == "Пепперони"
+    assert saved.state.entities.items[0].size_cm == 30
+    assert saved.state.entities.items[0].qty == 2
     assert saved.state.pending_choice is None
 
 
@@ -222,6 +258,41 @@ def test_pending_size_choice_ignores_unrelated_text_without_order_mutation() -> 
     assert saved.state.entities.items[0].size_cm is None
     assert saved.state.pending_choice is not None
     assert saved.state.pending_choice.field == "size_cm"
+
+
+def test_draft_preserves_ask_message_without_choices() -> None:
+    """
+    Execute test draft preserves ask message without choices.
+    This function-level documentation is intentionally explicit to simplify line-by-line explanations.
+
+    Returns:
+    - A value derived from the current function logic and its validated inputs.
+    """
+    state = State(
+        entities=Entities(
+            items=[
+                Item(name="Пепперони", qty=1, size_cm=30),
+                Item(name="Пепперони", qty=1, size_cm=35),
+            ]
+        ),
+        missing=[],
+        pending_choice=None,
+    )
+    response = ParseResponse(
+        action="ASK",
+        message="Уточните номер позиции для 'Пепперони': 1, 2.",
+        entities=state.entities,
+        missing=[],
+        choices=None,
+        state=state,
+        confidence=0.9,
+    )
+    service, _ = build_service({"убери пепперони": response})
+
+    reply = service.handle_message(112, "убери пепперони")
+
+    assert "Уточните номер позиции" in reply.text
+    assert "Пепперони" in reply.text
 
 
 def test_hallucinated_addition_without_catalog_match_is_rejected() -> None:
@@ -577,7 +648,8 @@ def test_freeform_edit_leaves_confirmation_mode_before_parse() -> None:
     service.handle_message(60, "Все выбрал")
     reply = service.handle_message(60, "еще маргариту хочу")
 
-    assert "Какой размер для Маргариты?" in reply.text
+    assert "позиции 2" in reply.text
+    assert "Маргарита" in reply.text
     assert store.get(60).awaiting_confirmation is False
     assert store.get(60).checkout_step == "draft"
 
