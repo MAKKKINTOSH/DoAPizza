@@ -1,101 +1,93 @@
 import { apiClient } from './client';
 import { ENDPOINTS } from './endpoints';
 
+const TOKEN_KEY = 'doapizza_token';
+const REFRESH_KEY = 'doapizza_refresh';
+
 /**
- * API для авторизации
+ * API авторизации (api_integration.md)
  */
 export const authApi = {
   /**
    * Запросить код для входа
-   * @param {string} phone - Номер телефона (10 цифр без +7)
+   * @param {string} phoneNumber - Номер в формате +79001234567
    * @returns {Promise<{success: boolean, message?: string}>}
    */
-  async requestCode(phone) {
+  async requestCode(phoneNumber) {
     try {
-      const response = await apiClient.post(ENDPOINTS.AUTH.REQUEST_CODE, { phone });
-      return { success: true, ...response };
+      await apiClient.post(ENDPOINTS.AUTH.REQUEST_CODE, { phone_number: phoneNumber });
+      return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        message: error.data?.message || error.message || 'Ошибка при запросе кода',
-      };
+      const msg = error.data?.phone_number?.[0] || error.data?.detail || error.message;
+      return { success: false, message: msg || 'Ошибка при запросе кода' };
     }
   },
 
   /**
-   * Проверить код и авторизоваться
-   * @param {string} phone - Номер телефона (10 цифр без +7)
-   * @param {string} code - Код подтверждения
-   * @returns {Promise<{success: boolean, token?: string, user?: object, message?: string}>}
+   * Проверить код и получить JWT
+   * @param {string} phoneNumber - +79001234567
+   * @param {string} code - 6-значный код
+   * @returns {Promise<{success: boolean, user?: object, message?: string}>}
    */
-  async verifyCode(phone, code) {
+  async verifyCode(phoneNumber, code) {
     try {
-      const response = await apiClient.post(ENDPOINTS.AUTH.VERIFY_CODE, { phone, code });
-      
-      // Сохраняем токен, если он пришел в ответе
-      if (response.token) {
-        localStorage.setItem('doapizza_token', response.token);
+      const response = await apiClient.post(ENDPOINTS.AUTH.VERIFY_CODE, {
+        phone_number: phoneNumber,
+        code: String(code),
+      });
+      if (response.access) {
+        localStorage.setItem(TOKEN_KEY, response.access);
       }
-      
+      if (response.refresh) {
+        localStorage.setItem(REFRESH_KEY, response.refresh);
+      }
       return {
         success: true,
-        token: response.token,
         user: response.user,
-        role: response.user?.role,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.data?.message || error.message || 'Неверный код. Проверьте и попробуйте снова.',
-      };
+      const msg = error.data?.detail || error.message || 'Неверный или истёкший код.';
+      return { success: false, message: msg };
     }
   },
 
   /**
-   * Выйти из системы
-   * @returns {Promise<{success: boolean}>}
-   */
-  async logout() {
-    try {
-      await apiClient.post(ENDPOINTS.AUTH.LOGOUT);
-      localStorage.removeItem('doapizza_token');
-      return { success: true };
-    } catch (error) {
-      // Удаляем токен даже при ошибке
-      localStorage.removeItem('doapizza_token');
-      return { success: true };
-    }
-  },
-
-  /**
-   * Обновить токен
-   * @returns {Promise<{success: boolean, token?: string}>}
+   * Обновить access-токен
    */
   async refreshToken() {
+    const refresh = localStorage.getItem(REFRESH_KEY);
+    if (!refresh) return { success: false };
     try {
-      const response = await apiClient.post(ENDPOINTS.AUTH.REFRESH);
-      if (response.token) {
-        localStorage.setItem('doapizza_token', response.token);
+      const response = await apiClient.post(ENDPOINTS.AUTH.TOKEN_REFRESH, { refresh });
+      if (response.access) {
+        localStorage.setItem(TOKEN_KEY, response.access);
+        return { success: true, access: response.access };
       }
-      return { success: true, token: response.token };
-    } catch (error) {
-      localStorage.removeItem('doapizza_token');
+      return { success: false };
+    } catch {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_KEY);
       return { success: false };
     }
   },
 
+  logout() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+  },
+
   /**
-   * Получить профиль текущего пользователя
-   * @returns {Promise<{success: boolean, user?: object}>}
+   * Получить профиль пользователя
+   * @param {number} userId
    */
-  async getProfile() {
+  async getUser(userId) {
     try {
-      const user = await apiClient.get(ENDPOINTS.AUTH.PROFILE);
+      const user = await apiClient.get(ENDPOINTS.AUTH.USER(userId));
       return { success: true, user };
     } catch (error) {
       return {
         success: false,
-        message: error.data?.message || error.message || 'Ошибка при получении профиля',
+        message: error.data?.detail || error.message || 'Ошибка при загрузке профиля',
       };
     }
   },

@@ -2,8 +2,9 @@ import { useMemo, useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Header } from '../Header';
 import { useCart } from '../../entities/cart';
+import { useMenu } from '../../features/menu';
 import { CartModal } from '../CartModal';
-import { MOCK_DISHES, CATEGORY_NAMES } from '../../entities/dish';
+import { CookieBanner } from '../CookieBanner';
 import { formatPrice } from '../../shared/lib/formatPrice';
 import styles from './AppLayout.module.css';
 
@@ -12,24 +13,25 @@ export function AppLayout() {
   const [activeSectionId, setActiveSectionId] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const { items, totalPrice } = useCart();
+  const { dishes, categories } = useMenu();
 
   const menuSections = useMemo(() => {
-    const popularDishes = MOCK_DISHES.filter((d) => d.isPopular);
-    const grouped = MOCK_DISHES.reduce((acc, dish) => {
-      const cat = CATEGORY_NAMES[dish.category] || dish.category;
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(dish);
+    const catMap = Object.fromEntries((categories || []).map((c) => [c.id, c.name]));
+    const grouped = (dishes || []).reduce((acc, dish) => {
+      const catName = dish.category?.name || catMap[dish.category?.id] || 'Другое';
+      if (!acc[catName]) acc[catName] = [];
+      acc[catName].push(dish);
       return acc;
     }, {});
     const list = [];
-    if (popularDishes.length > 0) list.push({ id: 'popular', label: 'Популярное' });
+    if (dishes?.length > 0) list.push({ id: 'popular', label: 'Популярное' });
     Object.keys(grouped).forEach((label) => {
-      const dishes = grouped[label];
-      const id = dishes[0]?.category || label.toLowerCase().replace(/\s+/g, '-');
+      const listDishes = grouped[label];
+      const id = listDishes[0]?.category?.id ? `cat-${listDishes[0].category.id}` : label.toLowerCase().replace(/\s+/g, '-');
       list.push({ id, label });
     });
     return list;
-  }, []);
+  }, [dishes, categories]);
 
   const isMenuPage = location.pathname === '/';
 
@@ -56,7 +58,7 @@ export function AppLayout() {
 
       if (sections.length === 0) return;
 
-      const headerOffset = 120; // чуть ниже шапки и бара категорий
+      const headerOffset = 120;
 
       const above = sections
         .filter((s) => s.top <= headerOffset)
@@ -126,6 +128,8 @@ export function AppLayout() {
           <p className={styles.footerText}>© 2025 Доставка пиццы DoAPizza</p>
         </div>
       </footer>
+
+      <CookieBanner />
     </div>
   );
 }

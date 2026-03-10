@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../entities/cart';
 import { useAuth } from '../../features/auth';
-import { PIZZA_SIZES } from '../../entities/dish';
 import { Button } from '../../shared/ui/Button';
 import { formatPrice } from '../../shared/lib/formatPrice';
 import styles from './CartModal.module.css';
@@ -40,24 +39,22 @@ export function CartModal({ isOpen, onClose }) {
           ) : (
             <>
               <ul className={styles.list}>
-                {items.map((item, idx) => {
+                {items.map((item) => {
                   const price = getItemPrice(item);
-                  const sizeName =
-                    item.sizeId && item.dish.hasSizes
-                      ? PIZZA_SIZES.find((s) => s.id === item.sizeId)?.name
-                      : null;
+                  const v = item.variant;
+                  const sizeName = v?.size || null;
 
                   return (
-                    <li key={`${item.dish.id}-${item.sizeId || 'x'}-${idx}`} className={styles.item}>
-                      {item.dish.image && (
+                    <li key={v?.id} className={styles.item}>
+                      {v?.dish_image && (
                         <div className={styles.itemImageWrap}>
-                          <img src={item.dish.image} alt={item.dish.name} className={styles.itemImage} />
+                          <img src={v.dish_image} alt={v.dish_name} className={styles.itemImage} />
                         </div>
                       )}
                       <div className={styles.itemContent}>
                         <div className={styles.itemInfo}>
                           <span className={styles.itemName}>
-                            {item.dish.name}
+                            {v?.dish_name}
                             {sizeName && <span className={styles.size}> • {sizeName}</span>}
                           </span>
                           <span className={styles.itemPrice}>{formatPrice(price)}</span>
@@ -67,7 +64,7 @@ export function CartModal({ isOpen, onClose }) {
                             <button
                               type="button"
                               onClick={() =>
-                                updateQuantity(item.dish.id, item.sizeId, item.quantity - 1)
+                                updateQuantity(v?.id, item.quantity - 1)
                               }
                             >
                               −
@@ -76,7 +73,7 @@ export function CartModal({ isOpen, onClose }) {
                             <button
                               type="button"
                               onClick={() =>
-                                updateQuantity(item.dish.id, item.sizeId, item.quantity + 1)
+                                updateQuantity(v?.id, item.quantity + 1)
                               }
                             >
                               +
@@ -86,7 +83,7 @@ export function CartModal({ isOpen, onClose }) {
                           <button
                             type="button"
                             className={styles.remove}
-                            onClick={() => removeItem(item.dish.id, item.sizeId)}
+                            onClick={() => removeItem(v?.id)}
                           >
                             Удалить
                           </button>

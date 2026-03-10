@@ -75,6 +75,21 @@
   margin: 0 auto;
 }
 
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.checkbox input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
 .phoneInput input,
 .phoneInput :global(input) {
   background: rgba(240, 255, 255, 0.5);

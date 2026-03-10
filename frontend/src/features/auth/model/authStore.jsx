@@ -1,68 +1,70 @@
 import { createContext, useContext, useState, useCallback } from 'react';
+import { authApi } from '../../../shared/api';
 
 const AuthContext = createContext(null);
-
-// Тестовый код для входа: 1234
-// Любой номер телефона с кодом 1234 авторизуется как клиент
+const USER_KEY = 'doapizza_user';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('doapizza_user');
-    if (saved) {
-      const userData = JSON.parse(saved);
-      // Восстанавливаем имя из отдельного хранилища, если его нет в userData
-      if (!userData.name) {
-        const savedName = localStorage.getItem('doapizza_user_name');
-        if (savedName) {
-          userData.name = savedName;
-        }
-      }
-      return userData;
+    try {
+      const saved = localStorage.getItem(USER_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
     }
-    return null;
   });
   const [loading, setLoading] = useState(false);
 
   const login = useCallback(async ({ phone, code }) => {
     setLoading(true);
     try {
-      const cleanPhone = String(phone).replace(/\D/g, '').slice(-10);
-      
-      // Проверяем только код - если код 1234, авторизуем как клиента
-      if (code === '1234' && cleanPhone.length === 10) {
-        // Восстанавливаем сохраненное имя, если есть
-        const savedName = localStorage.getItem('doapizza_user_name') || '';
-        const userData = { 
-          id: Date.now(), // Временный ID
-          phone: cleanPhone, 
-          role: 'CLIENT',
-          name: savedName
+      const phoneNumber = phone.startsWith('+') ? phone : `+7${String(phone).replace(/\D/g, '')}`;
+      const result = await authApi.verifyCode(phoneNumber, code);
+      if (result.success && result.user) {
+        const u = {
+          id: result.user.id,
+          phone_number: result.user.phone_number,
+          name: result.user.name || '',
+          email: result.user.email || '',
+          role: result.user.role || 'CLIENT',
+          addresses: result.user.addresses || [],
         };
-        setUser(userData);
-        localStorage.setItem('doapizza_user', JSON.stringify(userData));
-        return { success: true, role: 'CLIENT' };
+        setUser(u);
+        localStorage.setItem(USER_KEY, JSON.stringify(u));
+        return { success: true, role: u.role };
       }
-      
-      return { success: false, message: 'Неверный код. Используйте тестовый код: 1234' };
+      return { success: false, message: result.message || 'Ошибка входа' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Ошибка входа' };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const requestCode = useCallback(async (phone) => {
+    setLoading(true);
+    try {
+      const phoneNumber = phone.startsWith('+') ? phone : `+7${String(phone).replace(/\D/g, '')}`;
+      const result = await authApi.requestCode(phoneNumber);
+      return result;
     } finally {
       setLoading(false);
     }
   }, []);
 
   const updateUserName = useCallback((name) => {
-    setUser((prevUser) => {
-      if (!prevUser) return prevUser;
-      const updatedUser = { ...prevUser, name };
-      localStorage.setItem('doapizza_user', JSON.stringify(updatedUser));
-      localStorage.setItem('doapizza_user_name', name);
-      return updatedUser;
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, name };
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
+      return updated;
     });
   }, []);
 
   const logout = useCallback(() => {
+    authApi.logout();
     setUser(null);
-    localStorage.removeItem('doapizza_user');
-    // Имя не удаляем при выходе, чтобы сохранить для следующего входа
+    localStorage.removeItem(USER_KEY);
   }, []);
 
   return (
@@ -73,6 +75,7 @@ export function AuthProvider({ children }) {
         role: user?.role || null,
         loading,
         login,
+        requestCode,
         logout,
         updateUserName,
       }}

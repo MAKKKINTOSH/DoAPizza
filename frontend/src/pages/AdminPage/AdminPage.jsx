@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth';
-import { MOCK_DISHES } from '../../entities/dish';
+import { useMenu } from '../../features/menu';
 import styles from './AdminPage.module.css';
 
 export function AdminPage() {
   const { isAuthenticated, role, loading } = useAuth();
+  const { dishes, loading: menuLoading } = useMenu();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,33 +25,48 @@ export function AdminPage() {
     return null;
   }
 
+  const flatDishes = (dishes || []).flatMap((d) =>
+    (d.variants || []).map((v) => ({
+      name: d.dish_name,
+      category: d.category?.name || d.category,
+      price: parseFloat(v.price || 0),
+    }))
+  );
+  const uniqueDishes = flatDishes.filter(
+    (d, i, arr) => arr.findIndex((x) => x.name === d.name && x.price === d.price) === i
+  );
+
   return (
     <>
       <h1 className={styles.title}>Админ-панель</h1>
-      <p className={styles.subtitle}>Управление меню и заказами (мок-режим)</p>
+      <p className={styles.subtitle}>Управление меню и заказами</p>
 
       <section className={styles.section}>
-        <h2>Блюда в меню ({MOCK_DISHES.length})</h2>
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Категория</th>
-                <th>Цена</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MOCK_DISHES.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.name}</td>
-                  <td>{d.category}</td>
-                  <td>{d.basePrice} ₽</td>
+        <h2>Блюда в меню ({uniqueDishes.length})</h2>
+        {menuLoading ? (
+          <p>Загрузка...</p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Название</th>
+                  <th>Категория</th>
+                  <th>Цена</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {uniqueDishes.map((d, idx) => (
+                  <tr key={`${d.name}-${d.price}-${idx}`}>
+                    <td>{d.name}</td>
+                    <td>{d.category}</td>
+                    <td>{d.price} ₽</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </>
   );

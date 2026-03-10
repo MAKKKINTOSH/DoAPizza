@@ -1,0 +1,30 @@
+.banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  padding: 16px 24px;
+}
+
+.content {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+  line-height: 1.5;
+  flex: 1;
+  min-width: 280px;
+}

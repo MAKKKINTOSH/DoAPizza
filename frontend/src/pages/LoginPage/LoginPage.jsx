@@ -30,21 +30,22 @@ function maskPhoneForDisplay(phoneDigits) {
   return `+7 (${p1 || '___'}) ${p2} - ${p3} - ${p4}`;
 }
 
-const CODE_LENGTH = 4;
+const CODE_LENGTH = 6;
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, requestCode } = useAuth();
   const navigate = useNavigate();
   const [phoneDigits, setPhoneDigits] = useState('');
-  const [code, setCode] = useState(['', '', '', '']);
+  const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
   const [stage, setStage] = useState('phone');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
-  const codeRefs = useRef([null, null, null, null]);
+  const [agreePersonalData, setAgreePersonalData] = useState(false);
+  const codeRefs = useRef([]);
 
   const formattedPhone = formatPhoneDisplay(phoneDigits);
   const maskedPhone = maskPhoneForDisplay(phoneDigits);
-  const cleanPhone = phoneDigits.replace(/\D/g, '').replace(/^8/, '7').slice(-10);
+  const cleanPhone = '7' + phoneDigits.replace(/\D/g, '').replace(/^8?7?/, '').slice(-10);
 
   const handlePhoneChange = (value) => {
     let digits = value.replace(/\D/g, '').replace(/^8/, '7').slice(0, 11);
@@ -52,20 +53,26 @@ export function LoginPage() {
     setPhoneDigits(digits);
   };
 
-  const handleRequestCode = (e) => {
+  const handleRequestCode = async (e) => {
     e.preventDefault();
     setError('');
-    if (cleanPhone.length !== 10) {
+    if (!agreePersonalData) {
+      setError('Необходимо согласие на обработку персональных данных');
+      return;
+    }
+    if (cleanPhone.length < 11) {
       setError('Введите корректный номер телефона');
       return;
     }
     setSending(true);
-    // В реальном проекте — запрос на отправку кода (Telegram / SMS)
-    setTimeout(() => {
+    const result = await requestCode(cleanPhone);
+    setSending(false);
+    if (result.success) {
       setStage('code');
-      setCode(['', '', '', '']);
-      setSending(false);
-    }, 300);
+      setCode(Array(CODE_LENGTH).fill(''));
+    } else {
+      setError(result.message || 'Ошибка при отправке кода');
+    }
   };
 
   const setCodeDigit = (index, digit) => {
@@ -99,16 +106,19 @@ export function LoginPage() {
       setError('');
       const result = await login({ phone: cleanPhone, code: codeString });
       if (result.success) navigate('/');
-      else setError(result.message || 'Неверный код. Проверьте и попробуйте снова.');
+      else setError(result.message || 'Неверный или истёкший код.');
     };
     submit();
   }, [stage, codeString, cleanPhone, login, navigate]);
 
-  const handleResendCode = (e) => {
+  const handleResendCode = async (e) => {
     e.preventDefault();
     setError('');
-    setCode(['', '', '', '']);
-    // Повторная отправка кода на бэкенд
+    setCode(Array(CODE_LENGTH).fill(''));
+    setSending(true);
+    const result = await requestCode(cleanPhone);
+    setSending(false);
+    if (!result.success) setError(result.message || 'Не удалось отправить код');
   };
 
   return (
@@ -137,7 +147,24 @@ export function LoginPage() {
                 autoComplete="tel"
                 className={styles.phoneInput}
               />
-              <Button type="submit" variant="primary" size="lg" fullWidth disabled={sending}>
+              <label className={styles.checkbox}>
+                <input
+                  type="checkbox"
+                  checked={agreePersonalData}
+                  onChange={(e) => setAgreePersonalData(e.target.checked)}
+                  required
+                />
+                <span>
+                  Согласен на обработку и хранение персональных данных в соответствии с политикой конфиденциальности
+                </span>
+              </label>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                fullWidth
+                disabled={sending || !agreePersonalData}
+              >
                 Получить код
               </Button>
             </form>
@@ -166,7 +193,12 @@ export function LoginPage() {
                 />
               ))}
             </div>
-            <button type="button" className={styles.resend} onClick={handleResendCode}>
+            <button
+              type="button"
+              className={styles.resend}
+              onClick={handleResendCode}
+              disabled={sending}
+            >
               Отправить код повторно
             </button>
           </>
