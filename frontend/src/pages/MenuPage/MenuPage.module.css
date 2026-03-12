@@ -105,3 +105,14 @@
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 20px;
 }
+
+.errorText {
+  margin: 0 0 8px;
+  color: var(--color-danger, #dc3545);
+}
+
+.errorHint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}

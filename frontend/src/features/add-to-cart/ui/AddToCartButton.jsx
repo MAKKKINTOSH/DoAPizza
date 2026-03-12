@@ -1,31 +1,45 @@
 import { useState } from 'react';
 import { useCart } from '../../../entities/cart';
-import { PIZZA_SIZES } from '../../../entities/dish';
 import { Button } from '../../../shared/ui/Button';
 import { formatPrice } from '../../../shared/lib/formatPrice';
 import styles from './AddToCartButton.module.css';
 
+/**
+ * dish — объект из API: { id, dish_name, dish_image, variants: [{ id, size, size_value, price }] }
+ */
 export function AddToCartButton({ dish, onAdded }) {
   const [open, setOpen] = useState(false);
-  const [sizeId, setSizeId] = useState('medium');
+  const [selectedVariant, setSelectedVariant] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const { addItem } = useCart();
 
+  const variants = dish.variants || [];
+  const hasSizes = variants.length > 1;
+  const currentVariant = selectedVariant || variants[0];
+
   const handleAdd = () => {
-    if (dish.hasSizes) {
-      addItem(dish, quantity, sizeId);
-    } else {
-      addItem(dish, quantity);
-    }
+    if (!currentVariant) return;
+    const v = {
+      ...currentVariant,
+      dish_name: dish.dish_name,
+      dish_image: dish.dish_image,
+    };
+    addItem(v, quantity);
     onAdded?.();
     setOpen(false);
   };
 
   const handleQuickAdd = () => {
-    if (dish.hasSizes) {
+    if (hasSizes) {
+      setSelectedVariant(variants[0]);
       setOpen(true);
-    } else {
-      addItem(dish, 1);
+    } else if (variants[0]) {
+      const v = {
+        ...variants[0],
+        dish_name: dish.dish_name,
+        dish_image: dish.dish_image,
+      };
+      addItem(v, 1);
       onAdded?.();
     }
   };
@@ -43,17 +57,15 @@ export function AddToCartButton({ dish, onAdded }) {
       <div className={styles.content} onClick={(e) => e.stopPropagation()}>
         <h4 className={styles.title}>Выберите размер</h4>
         <div className={styles.sizes}>
-          {PIZZA_SIZES.map((s) => (
+          {variants.map((v) => (
             <button
-              key={s.id}
+              key={v.id}
               type="button"
-              className={`${styles.sizeBtn} ${sizeId === s.id ? styles.active : ''}`}
-              onClick={() => setSizeId(s.id)}
+              className={`${styles.sizeBtn} ${currentVariant?.id === v.id ? styles.active : ''}`}
+              onClick={() => setSelectedVariant(v)}
             >
-              <span className={styles.sizeName}>{s.name}</span>
-              <span className={styles.sizePrice}>
-                {formatPrice(Math.round(dish.basePrice * s.multiplier))}
-              </span>
+              <span className={styles.sizeName}>{v.size}</span>
+              <span className={styles.sizePrice}>{formatPrice(parseFloat(v.price || 0))}</span>
             </button>
           ))}
         </div>

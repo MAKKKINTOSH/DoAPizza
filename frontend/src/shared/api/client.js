@@ -17,7 +17,7 @@ class ApiClient {
       ...customHeaders,
     };
 
-    // Добавляем токен авторизации, если он есть
+    // JWT access token (api_integration.md)
     const token = localStorage.getItem('doapizza_token');
     if (token) {
       headers.Authorization = `Bearer ${token}`;

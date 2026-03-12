@@ -2,11 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../entities/cart';
 import { useAuth } from '../../features/auth';
-import { PIZZA_SIZES } from '../../entities/dish';
+import { ordersApi } from '../../shared/api';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
 import { formatPrice } from '../../shared/lib/formatPrice';
 import styles from './CheckoutPage.module.css';
+
+function normalizePhone(v) {
+  const d = String(v).replace(/\D/g, '').replace(/^8/, '7');
+  return d.startsWith('7') ? d : '7' + d;
+}
 
 export function CheckoutPage() {
   const { items, totalPrice, getItemPrice, clearCart } = useCart();
@@ -15,34 +20,65 @@ export function CheckoutPage() {
   const [address, setAddress] = useState({
     name: user?.name || '',
     address: '',
-    phone: '',
+    phone: user?.phone_number?.replace(/^\+/, '') || '',
     comment: '',
-    persons: 1,
   });
   const [pickup, setPickup] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
-  // Обновляем имя при изменении пользователя
   useEffect(() => {
-    if (user?.name && !address.name) {
-      setAddress((prev) => ({ ...prev, name: user.name }));
+    if (user) {
+      setAddress((prev) => ({
+        ...prev,
+        name: prev.name || user.name || '',
+        phone: prev.phone || user.phone_number?.replace(/^\+/, '') || '',
+      }));
     }
-  }, [user?.name]);
+  }, [user?.id]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Сохраняем имя в профиль, если оно было изменено
+    setSubmitError('');
     if (address.name && address.name !== user?.name) {
       updateUserName(address.name);
     }
-    clearCart();
-    navigate('/?order=success');
+
+    const phone = normalizePhone(address.phone);
+    if (phone.length < 11) {
+      setSubmitError('Введите корректный номер телефона');
+      return;
+    }
+
+    const orderPayload = {
+      phone_number: '+' + phone.replace(/^7/, '7'),
+      name: address.name || undefined,
+      email: user?.email || undefined,
+      address: pickup ? '' : (address.address || '').trim(),
+      comment: (address.comment || '').trim() || undefined,
+      items: items.map((item) => ({
+        dish_variant_id: item.variant?.id,
+        quantity: item.quantity,
+      })),
+    };
+
+    setSubmitting(true);
+    const result = await ordersApi.createOrder(orderPayload);
+    setSubmitting(false);
+
+    if (result.success) {
+      clearCart();
+      navigate('/?order=success');
+    } else {
+      setSubmitError(result.message || 'Не удалось оформить заказ');
+    }
   };
 
   if (items.length === 0) {
     return (
       <div className={styles.empty}>
         <h1 className={styles.title}>Оформление заказа</h1>
-        <p className={styles.emptyText}>Тут пока ничего нет, корзина пуста.</p>
+        <p className={styles.emptyText}>Корзина пуста. Добавьте блюда из меню.</p>
       </div>
     );
   }
@@ -65,16 +101,13 @@ export function CheckoutPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => {
+              {items.map((item) => {
                 const price = getItemPrice(item);
-                const sizeName =
-                  item.sizeId && item.dish.hasSizes
-                    ? PIZZA_SIZES.find((s) => s.id === item.sizeId)?.name
-                    : '—';
-
+                const v = item.variant;
+                const sizeName = v?.size || '—';
                 return (
-                  <tr key={`${item.dish.id}-${item.sizeId || 'x'}-${idx}`}>
-                    <td>{item.dish.name}</td>
+                  <tr key={v?.id}>
+                    <td>{v?.dish_name}</td>
                     <td>{sizeName}</td>
                     <td>{item.quantity}</td>
                     <td>{formatPrice(price)}</td>
@@ -117,25 +150,15 @@ export function CheckoutPage() {
           />
         )}
 
-        <div className={styles.fieldsRow}>
-          <Input
-            label="Телефон"
-            type="tel"
-            value={address.phone}
-            onChange={(v) => setAddress({ ...address, phone: v })}
-            placeholder="999 123 45 67"
-            required
-            autoComplete="tel"
-          />
-          <Input
-            label="Количество персон"
-            type="number"
-            min={1}
-            max={20}
-            value={address.persons}
-            onChange={(v) => setAddress({ ...address, persons: Number(v) || 1 })}
-          />
-        </div>
+        <Input
+          label="Телефон"
+          type="tel"
+          value={address.phone}
+          onChange={(v) => setAddress({ ...address, phone: v })}
+          placeholder="+7 (999) 123-45-67"
+          required
+          autoComplete="tel"
+        />
 
         <Input
           label="Комментарий"
@@ -144,9 +167,11 @@ export function CheckoutPage() {
           placeholder="Дополнительные пожелания"
         />
 
+        {submitError && <p className={styles.submitError}>{submitError}</p>}
+
         <div className={styles.submitRow}>
-          <Button type="submit" variant="primary" size="lg">
-            Подтвердить заказ
+          <Button type="submit" variant="primary" size="lg" disabled={submitting}>
+            {submitting ? 'Отправка...' : 'Подтвердить заказ'}
           </Button>
         </div>
       </form>

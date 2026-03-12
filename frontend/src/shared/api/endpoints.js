@@ -1,46 +1,26 @@
 /**
- * Константы эндпоинтов API
+ * Эндпоинты API (соответствует api_integration.md)
  */
 export const ENDPOINTS = {
-  // Авторизация
+  // Авторизация: префикс /api/auth/
   AUTH: {
     REQUEST_CODE: '/auth/request-code/',
     VERIFY_CODE: '/auth/verify-code/',
-    LOGOUT: '/auth/logout/',
-    REFRESH: '/auth/refresh/',
-    PROFILE: '/auth/profile/',
+    TOKEN_REFRESH: '/auth/token/refresh/',
+    USER: (id) => `/auth/users/${id}/`,
   },
 
-  // Блюда
-  DISHES: {
-    LIST: '/dishes/',
-    DETAIL: (id) => `/dishes/${id}/`,
-    CATEGORIES: '/dishes/categories/',
+  // Меню: префикс /api/restaurant/
+  RESTAURANT: {
+    CATEGORIES: '/restaurant/categories/',
+    VARIANTS: '/restaurant/variants/',
+    VARIANT: (id) => `/restaurant/variants/${id}/`,
   },
 
-  // Заказы
+  // Заказы: префикс /api/orders/
   ORDERS: {
-    LIST: '/orders/',
     CREATE: '/orders/',
-    DETAIL: (id) => `/orders/${id}/`,
-    CANCEL: (id) => `/orders/${id}/cancel/`,
-    STATUS: (id) => `/orders/${id}/status/`,
-  },
-
-  // Профиль
-  PROFILE: {
-    GET: '/profile/',
-    UPDATE: '/profile/',
-    ADDRESSES: '/profile/addresses/',
-    ADDRESS: (id) => `/profile/addresses/${id}/`,
-  },
-
-  // Админка
-  ADMIN: {
-    ORDERS: '/admin/orders/',
-    ORDER_DETAIL: (id) => `/admin/orders/${id}/`,
-    UPDATE_ORDER_STATUS: (id) => `/admin/orders/${id}/status/`,
-    ASSIGN_COURIER: (id) => `/admin/orders/${id}/assign-courier/`,
-    STATISTICS: '/admin/statistics/',
+    USER_ORDERS: (userId) => `/orders/users/${userId}/`,
+    USER_ORDER: (userId, orderId) => `/orders/users/${userId}/${orderId}/`,
   },
 };

@@ -113,3 +113,9 @@
 .submitRow {
   margin-top: 8px;
 }
+
+.submitError {
+  margin: 0;
+  color: var(--color-danger, #dc3545);
+  font-size: 14px;
+}
