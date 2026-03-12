@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'django_filters',
+    'corsheaders',
     'administration',
     'restaurant',
     'orders',
@@ -33,6 +34,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -71,7 +73,6 @@ DATABASES = {
         'PORT': env('POSTGRES_PORT', default='5432'),
     }
 }
-print(DATABASES)
 
 AUTH_USER_MODEL = 'administration.User'
 
@@ -123,3 +124,9 @@ SIMPLE_JWT = {
 }
 
 AUTH_CODE_EXPIRY_MINUTES = env('AUTH_CODE_EXPIRY_MINUTES')
+
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+])
+CORS_ALLOW_CREDENTIALS = True
