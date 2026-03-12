@@ -31,6 +31,15 @@ function maskPhoneForDisplay(phoneDigits) {
 }
 
 const CODE_LENGTH = 6;
+const CONSENT_KEY = 'doapizza_personal_data_consent';
+
+function loadConsent() {
+  try {
+    return sessionStorage.getItem(CONSENT_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 export function LoginPage() {
   const { login, requestCode } = useAuth();
@@ -40,7 +49,7 @@ export function LoginPage() {
   const [stage, setStage] = useState('phone');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
-  const [agreePersonalData, setAgreePersonalData] = useState(false);
+  const [agreePersonalData, setAgreePersonalData] = useState(loadConsent);
   const codeRefs = useRef([]);
 
   const formattedPhone = formatPhoneDisplay(phoneDigits);
@@ -68,6 +77,9 @@ export function LoginPage() {
     const result = await requestCode(cleanPhone);
     setSending(false);
     if (result.success) {
+      try {
+        sessionStorage.setItem(CONSENT_KEY, 'true');
+      } catch {}
       setStage('code');
       setCode(Array(CODE_LENGTH).fill(''));
     } else {
