@@ -4,6 +4,13 @@ import { authApi } from '../../../shared/api';
 const AuthContext = createContext(null);
 const USER_KEY = 'doapizza_user';
 
+function normalizePhone(phone) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (digits.startsWith('8')) digits = '7' + digits.slice(1);
+  if (!digits.startsWith('7')) digits = '7' + digits;
+  return '+' + digits.slice(0, 11);
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
@@ -18,7 +25,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async ({ phone, code }) => {
     setLoading(true);
     try {
-      const phoneNumber = phone.startsWith('+') ? phone : `+7${String(phone).replace(/\D/g, '')}`;
+      const phoneNumber = normalizePhone(phone);
       const result = await authApi.verifyCode(phoneNumber, code);
       if (result.success && result.user) {
         const u = {
@@ -44,7 +51,7 @@ export function AuthProvider({ children }) {
   const requestCode = useCallback(async (phone) => {
     setLoading(true);
     try {
-      const phoneNumber = phone.startsWith('+') ? phone : `+7${String(phone).replace(/\D/g, '')}`;
+      const phoneNumber = normalizePhone(phone);
       const result = await authApi.requestCode(phoneNumber);
       return result;
     } finally {
