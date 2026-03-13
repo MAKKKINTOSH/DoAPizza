@@ -75,19 +75,21 @@
   margin: 0 auto;
 }
 
-.checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
+.consent {
+  margin: 0;
   font-size: 13px;
   color: var(--color-muted);
   line-height: 1.5;
+  text-align: center;
 }
 
-.checkbox input {
-  margin-top: 3px;
-  flex-shrink: 0;
+.consentLink {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.consentLink:hover {
+  text-decoration: underline;
 }
 
 .phoneInput input,

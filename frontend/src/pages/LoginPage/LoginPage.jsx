@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../features/auth';
 import { DJANGO_ADMIN_URL } from '../../shared/config';
 import { Button } from '../../shared/ui/Button';
@@ -31,15 +31,6 @@ function maskPhoneForDisplay(phoneDigits) {
 }
 
 const CODE_LENGTH = 6;
-const CONSENT_KEY = 'doapizza_personal_data_consent';
-
-function loadConsent() {
-  try {
-    return sessionStorage.getItem(CONSENT_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
 
 export function LoginPage() {
   const { login, requestCode } = useAuth();
@@ -49,7 +40,6 @@ export function LoginPage() {
   const [stage, setStage] = useState('phone');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
-  const [agreePersonalData, setAgreePersonalData] = useState(loadConsent);
   const codeRefs = useRef([]);
 
   const formattedPhone = formatPhoneDisplay(phoneDigits);
@@ -65,10 +55,6 @@ export function LoginPage() {
   const handleRequestCode = async (e) => {
     e.preventDefault();
     setError('');
-    if (!agreePersonalData) {
-      setError('Необходимо согласие на обработку персональных данных');
-      return;
-    }
     if (cleanPhone.length < 11) {
       setError('Введите корректный номер телефона');
       return;
@@ -77,9 +63,6 @@ export function LoginPage() {
     const result = await requestCode(cleanPhone);
     setSending(false);
     if (result.success) {
-      try {
-        sessionStorage.setItem(CONSENT_KEY, 'true');
-      } catch {}
       setStage('code');
       setCode(Array(CODE_LENGTH).fill(''));
     } else {
@@ -159,23 +142,18 @@ export function LoginPage() {
                 autoComplete="tel"
                 className={styles.phoneInput}
               />
-              <label className={styles.checkbox}>
-                <input
-                  type="checkbox"
-                  checked={agreePersonalData}
-                  onChange={(e) => setAgreePersonalData(e.target.checked)}
-                  required
-                />
-                <span>
-                  Согласен на обработку и хранение персональных данных в соответствии с политикой конфиденциальности
-                </span>
-              </label>
+              <p className={styles.consent}>
+                Нажимая кнопку «Получить код», вы соглашаетесь с{' '}
+                <Link to="/privacy" className={styles.consentLink}>
+                  политикой конфиденциальности
+                </Link>
+              </p>
               <Button
                 type="submit"
                 variant="primary"
                 size="lg"
                 fullWidth
-                disabled={sending || !agreePersonalData}
+                disabled={sending}
               >
                 Получить код
               </Button>

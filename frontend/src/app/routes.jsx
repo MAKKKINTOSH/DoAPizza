@@ -7,6 +7,7 @@ import { LoginPage } from '../pages/LoginPage/LoginPage';
 import { AdminPage } from '../pages/AdminPage/AdminPage';
 import { ProfilePage } from '../pages/ProfilePage/ProfilePage';
 import { CourierOrdersPage } from '../pages/CourierOrdersPage/CourierOrdersPage';
+import { PrivacyPage } from '../pages/PrivacyPage/PrivacyPage';
 import { useAuth } from '../features/auth';
 
 export function AppRoutes() {
@@ -29,6 +30,7 @@ export function AppRoutes() {
           <Route path="/cart" element={<Navigate to="/" replace />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route
             path="/profile"
             element={(
