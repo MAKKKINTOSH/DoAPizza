@@ -51,7 +51,7 @@ class UserOrderDetailView(RetrieveAPIView):
 
 class OrderCreateView(APIView):
     """
-    POST /api/orders/
+    POST /api/orders/create
     Создание заказа. Принимает номер телефона, имя и email для привязки/создания пользователя.
     """
 
