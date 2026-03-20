@@ -19,7 +19,7 @@ export const ENDPOINTS = {
 
   // Заказы: префикс /api/orders/
   ORDERS: {
-    CREATE: '/orders/',
+    CREATE: '/orders/create',
     USER_ORDERS: (userId) => `/orders/users/${userId}/`,
     USER_ORDER: (userId, orderId) => `/orders/users/${userId}/${orderId}/`,
   },
