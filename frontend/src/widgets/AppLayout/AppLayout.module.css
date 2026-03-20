@@ -156,11 +156,11 @@
   padding: 14px 20px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  color: white;
+  background: var(--color-primary);
+  border: 2px solid var(--color-primary);
   border-radius: 12px;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(232, 93, 4, 0.25);
   cursor: pointer;
   text-align: right;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.1s;
@@ -169,8 +169,8 @@
 .cartFloating:hover,
 .cartFloatingActive {
   border-color: var(--color-primary);
-  box-shadow: 0 4px 16px rgba(232, 93, 4, 0.2);
-  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(232, 93, 4, 0.35);
+  transform: translateY(-2px);
 }
 
 .cartFloatingRow {
