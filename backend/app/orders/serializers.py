@@ -99,7 +99,13 @@ class OrderCreateSerializer(serializers.Serializer):
 
         # Создаём элементы заказа
         for item_data in items_data:
-            variant = DishVariant.objects.get(pk=item_data['dish_variant_id'])
+            try:
+                variant = DishVariant.objects.get(pk=item_data['dish_variant_id'], is_deleted=False)
+            except DishVariant.DoesNotExist:
+                order.delete()
+                raise serializers.ValidationError(
+                    {'items': [f"Вариант блюда с id={item_data['dish_variant_id']} не найден."]}
+                )
             OrderItem.objects.create(
                 order=order,
                 dish_variant=variant,

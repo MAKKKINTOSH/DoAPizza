@@ -161,3 +161,42 @@ docker compose down
 ```bash
 docker compose down -v
 ```
+
+---
+
+## Тесты
+
+Тесты написаны на стандартном Django TestCase + DRF APIClient. Каждое приложение содержит свой файл с тестами:
+
+- `administration/tests.py` — авторизация и пользователи
+- `restaurant/tests.py` — категории и варианты блюд
+- `orders/tests.py` — создание и получение заказов
+
+### Запуск тестов
+
+Тесты запускаются **внутри Docker-контейнера**, так как приложение использует PostgreSQL.
+
+**Все тесты:**
+```bash
+docker compose exec backend python manage.py test
+```
+
+**Тесты конкретного приложения:**
+```bash
+docker compose exec backend python manage.py test administration
+docker compose exec backend python manage.py test restaurant
+docker compose exec backend python manage.py test orders
+```
+
+**Тесты конкретного класса или метода:**
+```bash
+docker compose exec backend python manage.py test administration.tests.VerifyAuthCodeTests
+docker compose exec backend python manage.py test administration.tests.VerifyAuthCodeTests.test_valid_code_returns_jwt_and_user
+```
+
+**С подробным выводом (`-v 2`):**
+```bash
+docker compose exec backend python manage.py test -v 2
+```
+
+> **Важно:** перед запуском тестов контейнеры должны быть запущены (`docker compose up -d`). Django автоматически создаёт и удаляет тестовую базу данных — данные в основной БД не затрагиваются.
