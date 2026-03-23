@@ -13,6 +13,27 @@ function normalizePhone(v) {
   return d.startsWith('7') ? d : '7' + d;
 }
 
+function formatPhoneDisplay(digits) {
+  let d = (digits || '').replace(/\D/g, '').replace(/^8/, '7').slice(0, 11);
+  if (d && !d.startsWith('7')) d = '7' + d;
+  const p1 = d.slice(1, 4);
+  const p2 = d.slice(4, 7);
+  const p3 = d.slice(7, 9);
+  const p4 = d.slice(9, 11);
+  if (!d || d === '7') return '+7 ';
+  let out = `+7 (${p1}`;
+  if (p2) out += `) ${p2}`;
+  if (p3) out += ` - ${p3}`;
+  if (p4) out += ` - ${p4}`;
+  return out.replace(/\s*-\s*$/g, '').trim();
+}
+
+function parsePhoneInput(value) {
+  let digits = value.replace(/\D/g, '').replace(/^8/, '7').slice(0, 11);
+  if (digits && !digits.startsWith('7')) digits = '7' + digits;
+  return digits;
+}
+
 export function CheckoutPage() {
   const { items, totalPrice, getItemPrice, clearCart } = useCart();
   const { user, updateUserName } = useAuth();
@@ -153,9 +174,9 @@ export function CheckoutPage() {
         <Input
           label="Телефон"
           type="tel"
-          value={address.phone}
-          onChange={(v) => setAddress({ ...address, phone: v })}
-          placeholder="+7 (999) 123-45-67"
+          value={formatPhoneDisplay(address.phone)}
+          onChange={(v) => setAddress({ ...address, phone: parsePhoneInput(v) })}
+          placeholder="+7 (___) ___ - __ - __"
           required
           autoComplete="tel"
         />

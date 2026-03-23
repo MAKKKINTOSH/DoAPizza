@@ -1,4 +1,9 @@
+import photo1 from '../../assets/images/about/photo1.jpg';
+import photo2 from '../../assets/images/about/photo2.jpg';
+import photo3 from '../../assets/images/about/photo3.jpg';
 import styles from './AboutPage.module.css';
+
+export const WORKING_HOURS = 'Ежедневно с 10:00 до 23:00';
 
 export function AboutPage() {
   return (
@@ -25,27 +30,34 @@ export function AboutPage() {
       </section>
 
       <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Часы работы</h2>
+        <p className={styles.text}>{WORKING_HOURS}</p>
+      </section>
+
+      <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Контакты и адрес</h2>
         <p className={styles.text}>
-          Работаем каждый день. Заказы принимаем на сайте и по телефону.
+          Заказы принимаем на сайте и по телефону.
         </p>
         <div className={styles.mapBlock}>
-          <div className={styles.mapPlaceholder}>
-            <span>Карта</span>
-            <p>Здесь будет карта (Яндекс.Карты / Google Maps)</p>
-          </div>
+          <iframe
+            className={styles.map}
+            src="https://yandex.ru/map-widget/v1/?text=%D0%98%D1%80%D0%BA%D1%83%D1%82%D1%81%D0%BA%2C+%D1%83%D0%BB%D0%B8%D1%86%D0%B0+%D0%9B%D0%B5%D1%80%D0%BC%D0%BE%D0%BD%D1%82%D0%BE%D0%B2%D0%B0%2C+83&z=17"
+            title="Карта"
+            allowFullScreen
+          />
         </div>
         <p className={styles.address}>
-          Адрес: г. Москва, ул. Примерная, д. 1
+          Адрес: г. Иркутск, ул. Лермонтова, 83
         </p>
       </section>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Фотографии</h2>
         <div className={styles.gallery}>
-          <div className={styles.galleryItem} />
-          <div className={styles.galleryItem} />
-          <div className={styles.galleryItem} />
+          <img className={styles.galleryItem} src={photo1} alt="Интерьер ресторана" />
+          <img className={styles.galleryItem} src={photo2} alt="Наша пицца" />
+          <img className={styles.galleryItem} src={photo3} alt="Зал ресторана" />
         </div>
       </section>
     </>

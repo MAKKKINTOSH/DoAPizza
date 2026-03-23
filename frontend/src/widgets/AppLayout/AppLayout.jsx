@@ -1,11 +1,12 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, NavLink } from 'react-router-dom';
 import { Header } from '../Header';
 import { useCart } from '../../entities/cart';
 import { useMenu } from '../../features/menu';
 import { CartModal } from '../CartModal';
 import { CookieBanner } from '../CookieBanner';
 import { formatPrice } from '../../shared/lib/formatPrice';
+import { WORKING_HOURS } from '../../pages/AboutPage/AboutPage';
 import styles from './AppLayout.module.css';
 
 export function AppLayout() {
@@ -125,7 +126,39 @@ export function AppLayout() {
 
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
-          <p className={styles.footerText}>© 2025 Доставка пиццы DoAPizza</p>
+          <div className={styles.footerTop}>
+            <div className={styles.footerCol}>
+              <span className={styles.footerLogo}>DoAPizza</span>
+              <p className={styles.footerText}>
+                Доставка пиццы и любимых блюд.<br />Готовим из свежих продуктов, доставляем горячим.
+              </p>
+            </div>
+
+            <div className={styles.footerCol}>
+              <span className={styles.footerColTitle}>Навигация</span>
+              <nav className={styles.footerNav}>
+                <NavLink to="/" className={styles.footerLink}>Меню</NavLink>
+                <NavLink to="/about" className={styles.footerLink}>О нас</NavLink>
+                <NavLink to="/privacy" className={styles.footerLink}>Политика конфиденциальности</NavLink>
+              </nav>
+            </div>
+
+            <div className={styles.footerCol}>
+              <span className={styles.footerColTitle}>Контакты</span>
+              <p className={styles.footerText}>г. Иркутск, ул. Лермонтова, 83</p>
+              <p className={styles.footerText}>+7 (914) 000-00-00</p>
+              <p className={styles.footerText}>doapizza@example.com</p>
+            </div>
+
+            <div className={styles.footerCol}>
+              <span className={styles.footerColTitle}>Часы работы</span>
+              <p className={styles.footerText}>{WORKING_HOURS}</p>
+            </div>
+          </div>
+
+          <div className={styles.footerBottom}>
+            <p className={styles.footerCopy}>© 2025 DoAPizza. Все права защищены.</p>
+          </div>
         </div>
       </footer>
 
