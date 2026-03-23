@@ -118,7 +118,10 @@ export function AppLayout() {
           {itemCount > 0 && <span className={styles.cartFloatingBadge}>{itemCount}</span>}
         </span>
         {totalPrice > 0 && (
-          <span className={styles.cartFloatingSum}>{formatPrice(totalPrice)}</span>
+          <>
+            <span className={styles.cartFloatingDivider} />
+            <span className={styles.cartFloatingSum}>{formatPrice(totalPrice)}</span>
+          </>
         )}
       </button>
 
