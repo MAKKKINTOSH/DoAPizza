@@ -36,6 +36,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/restaurant/categories/')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   nlp-service:
     build:
@@ -57,7 +63,8 @@ services:
       PORT: "8000"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   tgbot:
     build:
@@ -79,8 +86,10 @@ services:
       CATALOG_PIZZAS: ${CATALOG_PIZZAS}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
-      - backend
-      - nlp-service
+      backend:
+        condition: service_healthy
+      nlp-service:
+        condition: service_started
 
   nginx:
     build:
@@ -95,7 +104,8 @@ services:
       - static_files:/static:ro
       - media_files:/media:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
