@@ -1,0 +1,103 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "False"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      AUTH_CODE_EXPIRY_MINUTES: ${AUTH_CODE_EXPIRY_MINUTES}
+    volumes:
+      - static_files:/app/staticfiles
+      - media_files:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nlp-service:
+    build:
+      context: ./nlp-service
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_PROMPT_MODE: ${LLM_PROMPT_MODE:-auto}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      LLM_RETRIES: ${LLM_RETRIES:-2}
+      CATALOG_API_URL: http://backend:8000/api/restaurant/variants/
+      CATALOG_REFRESH_INTERVAL_SECONDS: ${CATALOG_REFRESH_INTERVAL_SECONDS:-300}
+      CATALOG_HTTP_TIMEOUT_SECONDS: ${CATALOG_HTTP_TIMEOUT_SECONDS:-5}
+      CATALOG_PIZZAS: ${CATALOG_PIZZAS}
+      CATALOG_SIZE_CM: ${CATALOG_SIZE_CM:-25,30,35}
+      PORT: "8000"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      - backend
+
+  tgbot:
+    build:
+      context: ./tgbot
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_API_BASE_URL: https://api.telegram.org
+      NLP_SERVICE_BASE_URL: http://nlp-service:8000
+      CATALOG_API_URL: http://backend:8000/api/restaurant/variants/
+      CATALOG_REFRESH_INTERVAL_SECONDS: ${CATALOG_REFRESH_INTERVAL_SECONDS:-300}
+      CATALOG_HTTP_TIMEOUT_SECONDS: ${CATALOG_HTTP_TIMEOUT_SECONDS:-5}
+      TELEGRAM_POLL_TIMEOUT_SECONDS: ${TELEGRAM_POLL_TIMEOUT_SECONDS:-30}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-10}
+      NLP_REQUEST_TIMEOUT_SECONDS: ${NLP_REQUEST_TIMEOUT_SECONDS:-45}
+      ORDERS_API_URL: http://backend:8000/api/orders/create
+      ORDERS_HTTP_TIMEOUT_SECONDS: ${ORDERS_HTTP_TIMEOUT_SECONDS:-10}
+      CATALOG_PIZZAS: ${CATALOG_PIZZAS}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      - backend
+      - nlp-service
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile.prod
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - static_files:/static:ro
+      - media_files:/media:ro
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  static_files:
+  media_files:
