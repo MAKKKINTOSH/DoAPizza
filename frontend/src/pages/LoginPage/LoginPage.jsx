@@ -164,7 +164,7 @@ export function LoginPage() {
         {stage === 'code' && (
           <>
             <h1 className={styles.title}>Введите код из Telegram</h1>
-            <p className={styles.subtitle}>Отправили на номер {maskedPhone}</p>
+            <p className={styles.subtitle}>Отправили на номер <span style={{ whiteSpace: 'nowrap' }}>{maskedPhone}</span></p>
             {error && <p className={styles.error}>{error}</p>}
             <div className={styles.codeRow} onPaste={handleCodePaste}>
               {code.map((digit, i) => (
