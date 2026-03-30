@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import httpx
@@ -23,6 +23,8 @@ class CatalogSnapshot:
     pizza_names: tuple[str, ...]
     sizes_cm: tuple[int, ...]
     source: str
+    # (normalized_dish_name, size_cm) -> dish_variant_id; used for order submission
+    variant_map: dict[tuple[str, int], int] = field(default_factory=dict)
 
 
 class CatalogSync:
@@ -47,6 +49,7 @@ class CatalogSync:
             pizza_names=_normalize_pizza_names(fallback_pizzas),
             sizes_cm=DEFAULT_FALLBACK_SIZES_CM,
             source="fallback",
+            variant_map={},
         )
 
     def start(self) -> None:
@@ -122,6 +125,7 @@ def _snapshot_from_payload(payload: Any) -> CatalogSnapshot:
     pizzas: list[str] = []
     sizes_cm: set[int] = set()
     seen_names: set[str] = set()
+    variant_map: dict[tuple[str, int], int] = {}
 
     for dish in payload:
         if not isinstance(dish, dict):
@@ -147,13 +151,21 @@ def _snapshot_from_payload(payload: Any) -> CatalogSnapshot:
             parsed_size = _parse_size_cm(size_value)
             if parsed_size is not None:
                 sizes_cm.add(parsed_size)
+                variant_id = variant.get("id")
+                if variant_id is not None and normalized_name:
+                    variant_map[(normalized_name, parsed_size)] = int(variant_id)
 
     normalized_pizzas = tuple(pizzas)
     if not normalized_pizzas:
         raise ValueError("Catalog API returned no pizzas")
 
     normalized_sizes = tuple(sorted(sizes_cm)) if sizes_cm else DEFAULT_FALLBACK_SIZES_CM
-    return CatalogSnapshot(pizza_names=normalized_pizzas, sizes_cm=normalized_sizes, source="api")
+    return CatalogSnapshot(
+        pizza_names=normalized_pizzas,
+        sizes_cm=normalized_sizes,
+        source="api",
+        variant_map=variant_map,
+    )
 
 
 def _normalize_pizza_names(values: tuple[str, ...]) -> tuple[str, ...]:

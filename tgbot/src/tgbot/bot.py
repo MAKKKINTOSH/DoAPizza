@@ -16,6 +16,7 @@ from .catalog_sync import CatalogSync
 from .config import Settings
 from .config import get_settings
 from .nlp_client import NLPClient
+from .order_client import OrderClient
 from .order_service import BotReply, OrderService
 from .session_store import InMemorySessionStore
 
@@ -26,22 +27,32 @@ def run_polling() -> None:
     """Construct dependencies from settings and start async polling loop."""
     settings = get_settings()
     catalog_verifier = CatalogVerifier(settings.catalog_pizzas)
+    order_client = OrderClient(
+        api_url=settings.orders_api_url,
+        timeout_seconds=settings.orders_http_timeout_seconds,
+    )
+
+    def _on_catalog_update(snapshot) -> None:
+        catalog_verifier.update_catalog(snapshot.pizza_names)
+        order_client.update_catalog(snapshot)
+
     catalog_sync = CatalogSync(
         api_url=settings.catalog_api_url,
         refresh_interval_seconds=settings.catalog_refresh_interval_seconds,
         http_timeout_seconds=settings.catalog_http_timeout_seconds,
         fallback_pizzas=settings.catalog_pizzas,
-        on_update=lambda snapshot: catalog_verifier.update_catalog(snapshot.pizza_names),
+        on_update=_on_catalog_update,
     )
     catalog_sync.start()
     logger.info(
-        "Starting Telegram bot (aiogram) polling nlp_base_url=%s poll_timeout=%s nlp_timeout=%s catalog_size=%s catalog_api_url=%s catalog_refresh=%s",
+        "Starting Telegram bot (aiogram) polling nlp_base_url=%s poll_timeout=%s nlp_timeout=%s catalog_size=%s catalog_api_url=%s catalog_refresh=%s orders_api_url=%s",
         settings.nlp_service_base_url,
         settings.telegram_poll_timeout_seconds,
         settings.nlp_request_timeout_seconds,
         len(settings.catalog_pizzas),
         settings.catalog_api_url,
         settings.catalog_refresh_interval_seconds,
+        settings.orders_api_url,
     )
     # Compose all runtime dependencies once at startup.
     order_service = OrderService(
@@ -51,6 +62,7 @@ def run_polling() -> None:
         ),
         session_store=InMemorySessionStore(),
         catalog_verifier=catalog_verifier,
+        order_client=order_client,
     )
     try:
         asyncio.run(_run_polling_async(settings, order_service))

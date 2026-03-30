@@ -17,6 +17,7 @@ import re
 
 from .catalog import CatalogVerifier
 from .nlp_client import NLPClientError, NLPClientProtocol
+from .order_client import OrderClient
 from .schemas import Choice, Entities, Item, ParseResponse, State, TimeInfo
 from .session_store import SessionStore
 
@@ -80,10 +81,12 @@ class OrderService:
         nlp_client: NLPClientProtocol,
         session_store: SessionStore,
         catalog_verifier: CatalogVerifier,
+        order_client: OrderClient | None = None,
     ) -> None:
         self._nlp_client = nlp_client
         self._session_store = session_store
         self._catalog_verifier = catalog_verifier
+        self._order_client = order_client
 
     def handle_message(self, chat_id: int, text: str) -> BotReply:
         """Process one user message and return next bot response."""
@@ -161,11 +164,19 @@ class OrderService:
 
         if session.awaiting_confirmation and normalized in CONFIRM_COMMANDS:
             summary = self._format_order_summary(session.state.entities)
-            # Confirm ends conversation and clears state.
+            entities = session.state.entities
+            # Confirm ends conversation and clears state before the network call.
             self._session_store.delete(chat_id)
-            logger.info("Order confirmed chat_id=%s items=%s", chat_id, len(session.state.entities.items))
+            logger.info("Order confirmed chat_id=%s items=%s", chat_id, len(entities.items))
+            order_id: int | None = None
+            if self._order_client is not None:
+                order_id = self._order_client.submit(entities)
+            if order_id is not None:
+                confirmation_line = f"Заказ <b>#{order_id}</b> передан в обработку."
+            else:
+                confirmation_line = "Заказ принят и передан в обработку."
             return BotReply(
-                self._section("Заказ подтвержден", f"{summary}\n\nЗаказ передан в обработку."),
+                self._section("Заказ подтвержден", f"{summary}\n\n{confirmation_line}"),
                 remove_keyboard=True,
             )
 

@@ -73,6 +73,8 @@ class Settings(BaseModel):
     http_timeout_seconds: float = 10.0
     nlp_request_timeout_seconds: float = 45.0
     log_level: str = "INFO"
+    orders_api_url: str = "http://127.0.0.1:8000/api/orders/create"
+    orders_http_timeout_seconds: float = 10.0
     catalog_pizzas: tuple[str, ...] = (
         "Маргарита",
         "Пепперони",
@@ -100,6 +102,8 @@ class Settings(BaseModel):
             "http_timeout_seconds": float(os.getenv("HTTP_TIMEOUT_SECONDS", "10")),
             "nlp_request_timeout_seconds": float(os.getenv("NLP_REQUEST_TIMEOUT_SECONDS", "45")),
             "log_level": os.getenv("LOG_LEVEL", "INFO").strip().upper(),
+            "orders_api_url": os.getenv("ORDERS_API_URL", "http://127.0.0.1:8000/api/orders/create").rstrip("/"),
+            "orders_http_timeout_seconds": float(os.getenv("ORDERS_HTTP_TIMEOUT_SECONDS", "10")),
         }
         if catalog_items:
             # Override default catalog only when non-empty custom list was provided.
