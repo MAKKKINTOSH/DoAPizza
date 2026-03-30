@@ -280,3 +280,29 @@
   font-weight: 700;
   color: white;
 }
+
+@media (max-width: 640px) {
+  .content {
+    padding: 0 12px;
+  }
+
+  .menuCategoriesInner {
+    padding: 6px 12px 8px;
+  }
+
+  .menuCategoryBtn {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .cartFloating {
+    right: 16px;
+    bottom: 20px;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .main {
+    padding: 16px 0 32px;
+  }
+}

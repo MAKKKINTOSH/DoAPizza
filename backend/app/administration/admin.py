@@ -1,6 +1,20 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.forms import AuthenticationForm
 from .models import User, DeliveryAddress, AuthCode
+
+
+class EmailLoginForm(AuthenticationForm):
+    username = forms.EmailField(
+        label='Email',
+        widget=forms.EmailInput(attrs={'autofocus': True}),
+    )
+
+
+admin.site.login_form = EmailLoginForm
+admin.site.site_header = 'DoAPizza Администрирование'
+admin.site.site_title = 'DoAPizza Admin'
 
 
 class DeliveryAddressInline(admin.TabularInline):
