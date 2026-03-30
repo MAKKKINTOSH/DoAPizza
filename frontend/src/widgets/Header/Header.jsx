@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../features/auth';
 import { useCart } from '../../entities/cart';
 import { APP_NAME } from '../../shared/config';
@@ -8,6 +9,13 @@ export function Header() {
   const { isAuthenticated, role, logout } = useAuth();
   const { items } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -19,6 +27,37 @@ export function Header() {
   const navBtnClassName = ({ isActive }) =>
     `${styles.navBtn} ${isActive ? styles.active : ''}`;
 
+  const navLinks = (
+    <>
+      <NavLink to="/" className={navBtnClassName} onClick={() => setMobileOpen(false)}>
+        Меню
+      </NavLink>
+      <NavLink to="/about" className={navBtnClassName} onClick={() => setMobileOpen(false)}>
+        О нас
+      </NavLink>
+      {hasItems && (
+        <NavLink to="/checkout" className={navBtnClassName} onClick={() => setMobileOpen(false)}>
+          Оформление
+        </NavLink>
+      )}
+      {isAuthenticated && (
+        <NavLink to="/profile" className={navBtnClassName} onClick={() => setMobileOpen(false)}>
+          Профиль
+        </NavLink>
+      )}
+      {isAuthenticated && role === 'COURIER' && (
+        <NavLink to="/courier-orders" className={navBtnClassName} onClick={() => setMobileOpen(false)}>
+          Мои заказы
+        </NavLink>
+      )}
+      {role === 'ADMIN' && (
+        <NavLink to="/admin" className={navBtnClassName} onClick={() => setMobileOpen(false)}>
+          Админка
+        </NavLink>
+      )}
+    </>
+  );
+
   return (
     <header className={styles.header}>
       <div className={styles.inner}>
@@ -27,37 +66,7 @@ export function Header() {
         </NavLink>
 
         <nav className={styles.nav}>
-          <NavLink to="/" className={navBtnClassName}>
-            Меню
-          </NavLink>
-
-          <NavLink to="/about" className={navBtnClassName}>
-            О нас
-          </NavLink>
-
-          {hasItems && (
-            <NavLink to="/checkout" className={navBtnClassName}>
-              Оформление заказа
-            </NavLink>
-          )}
-
-          {isAuthenticated && (
-            <NavLink to="/profile" className={navBtnClassName}>
-              Профиль
-            </NavLink>
-          )}
-
-          {isAuthenticated && role === 'COURIER' && (
-            <NavLink to="/courier-orders" className={navBtnClassName}>
-              Мои заказы
-            </NavLink>
-          )}
-
-          {role === 'ADMIN' && (
-            <NavLink to="/admin" className={navBtnClassName}>
-              Админка
-            </NavLink>
-          )}
+          {navLinks}
         </nav>
 
         <div className={styles.right}>
@@ -79,7 +88,45 @@ export function Header() {
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          className={`${styles.hamburger} ${mobileOpen ? styles.hamburgerOpen : ''}`}
+          onClick={() => setMobileOpen((v) => !v)}
+          aria-label="Меню"
+        >
+          <span />
+          <span />
+          <span />
+        </button>
       </div>
+
+      {mobileOpen && (
+        <div className={styles.mobileMenu}>
+          <nav className={styles.mobileNav}>
+            {navLinks}
+          </nav>
+          <div className={styles.mobileAuthRow}>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => { handleLogout(); setMobileOpen(false); }}
+                className={styles.mobileAuthBtn}
+              >
+                Выход
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { navigate('/login'); setMobileOpen(false); }}
+                className={styles.mobileAuthBtn}
+              >
+                Войти
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -626,6 +626,23 @@ class OrderService:
         """Persist checkout progress and render next checkout step prompt."""
         previous_step = session.checkout_step
         session.state = parse_result.state
+
+        # Validate and normalize phone when NLP just extracted it on the phone step.
+        if previous_step == "phone" and session.state.entities.phone:
+            normalized = self._normalize_phone(session.state.entities.phone)
+            if normalized is None:
+                logger.warning("Invalid phone from NLP chat_id=%s value=%r", chat_id, session.state.entities.phone)
+                session.state.entities.phone = None
+                self._session_store.save(chat_id, session)
+                return BotReply(
+                    self._section(
+                        "Неверный номер телефона",
+                        "Номер должен содержать ровно 11 цифр.\nНапример: 89001234567 или +79001234567.\n\nВведите номер снова.",
+                    ),
+                    reply_keyboard=self._checkout_keyboard("phone"),
+                )
+            session.state.entities.phone = normalized
+
         session.checkout_step = self._determine_next_checkout_step(session.state)
         session.awaiting_confirmation = session.checkout_step == "confirm"
         self._session_store.save(chat_id, session)
@@ -852,7 +869,16 @@ class OrderService:
         if field == "address":
             session.state.entities.address = text
         elif field == "phone":
-            session.state.entities.phone = text
+            normalized = self._normalize_phone(text)
+            if normalized is None:
+                session.editing_field = field  # Keep editing mode
+                self._session_store.save(chat_id, session)
+                logger.warning("Invalid phone in manual edit chat_id=%s text=%r", chat_id, text)
+                return BotReply(
+                    "Номер должен содержать ровно 11 цифр (например: 89001234567 или +79001234567).\n\nВведите номер телефона снова.",
+                    reply_keyboard=[["Назад", "Сбросить заказ"]],
+                )
+            session.state.entities.phone = normalized
         elif field == "comment":
             session.state.entities.comment = None if text.lower() == "без комментария" else text
         elif field == "time":
@@ -881,6 +907,16 @@ class OrderService:
             ),
             reply_keyboard=POST_READY_KEYBOARD,
         )
+
+    @staticmethod
+    def _normalize_phone(text: str) -> str | None:
+        """Normalize phone to +7XXXXXXXXXX. Returns None if digit count != 11."""
+        digits = re.sub(r'\D', '', text)
+        if len(digits) == 11 and digits[0] == '8':
+            digits = '7' + digits[1:]
+        if len(digits) == 11 and digits[0] == '7':
+            return '+' + digits
+        return None
 
     def _format_item(self, item: Item) -> str:
         # Compose one human-readable line for order summary.
