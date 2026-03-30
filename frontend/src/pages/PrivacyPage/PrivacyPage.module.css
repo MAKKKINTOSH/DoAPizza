@@ -40,3 +40,29 @@
   color: var(--color-text);
   max-width: 640px;
 }
+
+@media (max-width: 640px) {
+  .hero {
+    margin-bottom: 24px;
+  }
+
+  .title {
+    font-size: 26px;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .section {
+    margin-bottom: 24px;
+  }
+
+  .sectionTitle {
+    font-size: 17px;
+  }
+
+  .text {
+    font-size: 15px;
+  }
+}
