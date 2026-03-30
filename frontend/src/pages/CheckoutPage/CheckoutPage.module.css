@@ -119,3 +119,43 @@
   color: var(--color-danger, #dc3545);
   font-size: 14px;
 }
+
+@media (max-width: 640px) {
+  .title {
+    font-size: 22px;
+    margin-bottom: 16px;
+  }
+
+  .form {
+    gap: 14px;
+  }
+
+  .tableScroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tableTitle {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+
+  .table thead th {
+    padding: 8px 8px;
+    font-size: 11px;
+  }
+
+  .table tbody td {
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  .tableTotal {
+    padding: 12px 14px;
+    font-size: 16px;
+  }
+
+  .submitRow button {
+    width: 100%;
+  }
+}

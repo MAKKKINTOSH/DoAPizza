@@ -111,6 +111,7 @@ export function CheckoutPage() {
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.tableSection}>
           <h2 className={styles.tableTitle}>Состав заказа</h2>
+          <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -138,6 +139,7 @@ export function CheckoutPage() {
               })}
             </tbody>
           </table>
+          </div>
           <div className={styles.tableTotal}>
             Итого: <strong>{formatPrice(totalPrice)}</strong>
           </div>
