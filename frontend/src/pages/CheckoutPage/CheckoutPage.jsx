@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../entities/cart';
 import { useAuth } from '../../features/auth';
@@ -7,6 +7,103 @@ import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
 import { formatPrice } from '../../shared/lib/formatPrice';
 import styles from './CheckoutPage.module.css';
+
+const DADATA_TOKEN = 'd9b6c145105eb8bda3761b248201ea5b07a1c8bf';
+
+async function fetchAddressSuggestions(query) {
+  if (!query || query.trim().length < 3) return [];
+  try {
+    const res = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Token ${DADATA_TOKEN}`,
+      },
+      body: JSON.stringify({ query: query.trim(), count: 5, locations: [{ country: 'Россия' }] }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.suggestions || []).map((s) => s.value);
+  } catch {
+    return [];
+  }
+}
+
+// Разрешённые символы для адреса: кириллица, латиница, цифры, пробел и знаки пунктуации адресов
+const ADDRESS_ALLOWED_RE = /^[а-яёА-ЯЁa-zA-Z0-9\s.,\-/()\u00C0-\u024F]+$/;
+
+function validateAddress(v) {
+  const t = (v || '').trim();
+  if (t.length < 5) return 'Введите адрес доставки';
+  if (!ADDRESS_ALLOWED_RE.test(t)) return 'Адрес содержит недопустимые символы';
+  if (!/[а-яёА-ЯЁ]/.test(t)) return 'Укажите название улицы';
+  if (!/\d/.test(t)) return 'Укажите номер дома';
+  return '';
+}
+
+function AddressInput({ value, onChange, required, externalError }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const debounceRef = useRef(null);
+  const wrapRef = useRef(null);
+
+  const error = touched ? validateAddress(value) : (externalError || '');
+
+  const handleChange = useCallback((v) => {
+    onChange(v);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const list = await fetchAddressSuggestions(v);
+      setSuggestions(list);
+      setOpen(list.length > 0);
+    }, 350);
+  }, [onChange]);
+
+  const handleSelect = (suggestion) => {
+    onChange(suggestion);
+    setSuggestions([]);
+    setOpen(false);
+    setTouched(true);
+  };
+
+  useEffect(() => {
+    const onOutside = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, []);
+
+  return (
+    <div ref={wrapRef} className={styles.addressWrap}>
+      <Input
+        label="Адрес доставки"
+        value={value}
+        onChange={handleChange}
+        onBlur={() => setTouched(true)}
+        placeholder="Улица, дом, квартира"
+        required={required}
+        autoComplete="off"
+      />
+      {error && <p className={styles.fieldError}>{error}</p>}
+      {open && suggestions.length > 0 && (
+        <ul className={styles.suggestions}>
+          {suggestions.map((s, i) => (
+            <li
+              key={i}
+              className={styles.suggestionItem}
+              onMouseDown={() => handleSelect(s)}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function normalizePhone(v) {
   const d = String(v).replace(/\D/g, '').replace(/^8/, '7');
@@ -47,6 +144,7 @@ export function CheckoutPage() {
   const [pickup, setPickup] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [addressError, setAddressError] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -61,6 +159,15 @@ export function CheckoutPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
+
+    if (!pickup) {
+      const addrErr = validateAddress(address.address);
+      setAddressError(addrErr);
+      if (addrErr) return;
+    } else {
+      setAddressError('');
+    }
+
     if (address.name && address.name !== user?.name) {
       updateUserName(address.name);
     }
@@ -163,13 +270,11 @@ export function CheckoutPage() {
         </label>
 
         {!pickup && (
-          <Input
-            label="Адрес доставки"
+          <AddressInput
             value={address.address}
-            onChange={(v) => setAddress({ ...address, address: v })}
-            placeholder="Улица, дом, квартира"
+            onChange={(v) => { setAddressError(''); setAddress({ ...address, address: v }); }}
             required
-            autoComplete="street-address"
+            externalError={addressError}
           />
         )}
 

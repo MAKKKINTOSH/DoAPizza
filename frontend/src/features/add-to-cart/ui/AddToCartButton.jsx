@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useCart } from '../../../entities/cart';
 import { Button } from '../../../shared/ui/Button';
 import { formatPrice } from '../../../shared/lib/formatPrice';
+import { useToast } from '../../../shared/ui/Toast';
 import styles from './AddToCartButton.module.css';
 
 /**
@@ -12,6 +13,7 @@ export function AddToCartButton({ dish, onAdded }) {
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const { addItem } = useCart();
+  const { showToast } = useToast();
 
   const variants = dish.variants || [];
   const hasSizes = variants.length > 1;
@@ -25,6 +27,7 @@ export function AddToCartButton({ dish, onAdded }) {
       dish_image: dish.dish_image,
     };
     addItem(v, quantity);
+    showToast(`${dish.dish_name} теперь в корзине`);
     onAdded?.();
     setOpen(false);
   };
@@ -40,6 +43,7 @@ export function AddToCartButton({ dish, onAdded }) {
         dish_image: dish.dish_image,
       };
       addItem(v, 1);
+      showToast(`${dish.dish_name} теперь в корзине`);
       onAdded?.();
     }
   };
