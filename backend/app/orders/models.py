@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 from django.conf import settings
 from restaurant.models import DishVariant
@@ -53,6 +54,12 @@ class Order(models.Model):
         default=Status.PROCESSING,
         verbose_name='Статус'
     )
+    bonus_discount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='Скидка бонусами'
+    )
 
     class Meta:
         verbose_name = 'Заказ'
@@ -89,3 +96,44 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f'{self.dish_variant} × {self.quantity}'
+
+
+class BonusTransaction(models.Model):
+    class Type(models.TextChoices):
+        EARNED = 'earned', 'Начислено'
+        REDEEMED = 'redeemed', 'Списано'
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='bonus_transactions',
+        verbose_name='Пользователь'
+    )
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='bonus_transactions',
+        verbose_name='Заказ'
+    )
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name='Сумма'
+    )
+    transaction_type = models.CharField(
+        max_length=10,
+        choices=Type.choices,
+        verbose_name='Тип'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата')
+
+    class Meta:
+        verbose_name = 'Бонусная транзакция'
+        verbose_name_plural = 'Бонусные транзакции'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        sign = '+' if self.transaction_type == self.Type.EARNED else '-'
+        return f'{self.user.phone_number} {sign}{self.amount} бонусов'

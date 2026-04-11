@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../cart';
 import { formatPrice } from '../../../shared/lib/formatPrice';
 import { Button } from '../../../shared/ui/Button';
+import { useToast } from '../../../shared/ui/Toast';
 import styles from './DishModal.module.css';
 
 export function DishModal({ dish, onClose }) {
@@ -10,6 +11,7 @@ export function DishModal({ dish, onClose }) {
   const [selectedVariant, setSelectedVariant] = useState(variants[0] || null);
   const [quantity, setQuantity] = useState(1);
   const { addItem } = useCart();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const hasSizes = variants.length > 1;
@@ -39,6 +41,7 @@ export function DishModal({ dish, onClose }) {
   const handleAddToCart = () => {
     if (!currentVariant) return;
     addItem(buildItem(), quantity);
+    showToast(`${dish.dish_name} теперь в корзине`);
     onClose();
   };
 

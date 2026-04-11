@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import photo1 from '../../assets/images/about/photo1.jpg';
 import photo2 from '../../assets/images/about/photo2.jpg';
 import photo3 from '../../assets/images/about/photo3.jpg';
@@ -5,7 +6,44 @@ import styles from './AboutPage.module.css';
 
 export const WORKING_HOURS = 'Ежедневно с 10:00 до 23:00';
 
+const PHOTOS = [
+  { src: photo1, alt: 'Интерьер ресторана' },
+  { src: photo2, alt: 'Наша пицца' },
+  { src: photo3, alt: 'Зал ресторана' },
+];
+
 export function AboutPage() {
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  const closeLightbox = useCallback(() => setLightboxIndex(null), []);
+
+  const prev = useCallback(() => {
+    setLightboxIndex((i) => (i - 1 + PHOTOS.length) % PHOTOS.length);
+  }, []);
+
+  const next = useCallback(() => {
+    setLightboxIndex((i) => (i + 1) % PHOTOS.length);
+  }, []);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowRight') next();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxIndex, closeLightbox, prev, next]);
+
+  useEffect(() => {
+    if (lightboxIndex !== null) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [lightboxIndex]);
+
   return (
     <>
       <div className={styles.hero}>
@@ -55,11 +93,57 @@ export function AboutPage() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Фотографии</h2>
         <div className={styles.gallery}>
-          <img className={styles.galleryItem} src={photo1} alt="Интерьер ресторана" />
-          <img className={styles.galleryItem} src={photo2} alt="Наша пицца" />
-          <img className={styles.galleryItem} src={photo3} alt="Зал ресторана" />
+          {PHOTOS.map((photo, idx) => (
+            <img
+              key={idx}
+              className={styles.galleryItem}
+              src={photo.src}
+              alt={photo.alt}
+              onClick={() => setLightboxIndex(idx)}
+            />
+          ))}
         </div>
       </section>
+
+      {lightboxIndex !== null && (
+        <div className={styles.lightboxBackdrop} onClick={closeLightbox}>
+          <button className={styles.lightboxClose} onClick={closeLightbox} aria-label="Закрыть">×</button>
+
+          <button
+            className={`${styles.lightboxNav} ${styles.lightboxNavPrev}`}
+            onClick={(e) => { e.stopPropagation(); prev(); }}
+            aria-label="Предыдущее фото"
+          >
+            ‹
+          </button>
+
+          <div className={styles.lightboxImgWrap} onClick={(e) => e.stopPropagation()}>
+            <img
+              className={styles.lightboxImg}
+              src={PHOTOS[lightboxIndex].src}
+              alt={PHOTOS[lightboxIndex].alt}
+            />
+          </div>
+
+          <button
+            className={`${styles.lightboxNav} ${styles.lightboxNavNext}`}
+            onClick={(e) => { e.stopPropagation(); next(); }}
+            aria-label="Следующее фото"
+          >
+            ›
+          </button>
+
+          <div className={styles.lightboxDots}>
+            {PHOTOS.map((_, idx) => (
+              <span
+                key={idx}
+                className={`${styles.lightboxDot} ${idx === lightboxIndex ? styles.lightboxDotActive : ''}`}
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(idx); }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

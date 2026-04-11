@@ -1,7 +1,9 @@
+from decimal import Decimal
 from rest_framework import serializers
+from django.db.models import Sum
 from restaurant.serializers import DishVariantSerializer
 from administration.models import User, DeliveryAddress
-from .models import Order, OrderItem
+from .models import Order, OrderItem, BonusTransaction
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -34,8 +36,20 @@ class OrderSerializer(serializers.ModelSerializer):
             'status',
             'status_display',
             'is_pickup',
+            'bonus_discount',
             'items',
         ]
+
+
+class BonusTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BonusTransaction
+        fields = ['id', 'order', 'amount', 'transaction_type', 'created_at']
+
+
+class UserBonusSerializer(serializers.Serializer):
+    balance = serializers.DecimalField(max_digits=10, decimal_places=2)
+    transactions = BonusTransactionSerializer(many=True)
 
 
 class OrderItemCreateSerializer(serializers.Serializer):
@@ -52,6 +66,7 @@ class OrderCreateSerializer(serializers.Serializer):
     # Данные заказа
     address = serializers.CharField(required=False, allow_blank=True, default='')
     comment = serializers.CharField(required=False, allow_blank=True, default='')
+    bonus_points = serializers.IntegerField(required=False, min_value=0, default=0)
     items = OrderItemCreateSerializer(many=True)
 
     def validate_items(self, value):
@@ -67,6 +82,7 @@ class OrderCreateSerializer(serializers.Serializer):
         email = validated_data.get('email', '')
         address = validated_data.get('address', '')
         comment = validated_data.get('comment', '')
+        bonus_points = validated_data.get('bonus_points', 0)
         items_data = validated_data['items']
 
         # Получаем или создаём пользователя
@@ -90,11 +106,23 @@ class OrderCreateSerializer(serializers.Serializer):
         if address:
             DeliveryAddress.objects.get_or_create(user=user, address=address)
 
+        # Проверяем и списываем бонусы
+        bonus_discount = Decimal('0.00')
+        if bonus_points > 0:
+            balance = (
+                BonusTransaction.objects.filter(user=user)
+                .aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            )
+            bonus_discount = min(Decimal(str(bonus_points)), balance)
+            if bonus_discount < 0:
+                bonus_discount = Decimal('0.00')
+
         # Создаём заказ
         order = Order.objects.create(
             user=user,
             address=address,
             comment=comment,
+            bonus_discount=bonus_discount,
         )
 
         # Создаём элементы заказа
@@ -110,6 +138,15 @@ class OrderCreateSerializer(serializers.Serializer):
                 order=order,
                 dish_variant=variant,
                 quantity=item_data['quantity'],
+            )
+
+        # Фиксируем списание бонусов
+        if bonus_discount > 0:
+            BonusTransaction.objects.create(
+                user=user,
+                order=order,
+                amount=-bonus_discount,
+                transaction_type=BonusTransaction.Type.REDEEMED,
             )
 
         return order

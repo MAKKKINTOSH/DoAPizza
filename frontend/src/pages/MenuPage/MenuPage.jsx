@@ -1,5 +1,5 @@
 import { useMenu } from '../../features/menu';
-import { DishCard, PROMO_BANNERS } from '../../entities/dish';
+import { DishCard } from '../../entities/dish';
 import styles from './MenuPage.module.css';
 
 export function MenuPage() {
@@ -37,16 +37,6 @@ export function MenuPage() {
       <div id="menu" className={styles.hero}>
         <h1 className={styles.title}>Меню</h1>
         <p className={styles.subtitle}>Свежая пицца с доставкой</p>
-      </div>
-
-      <div className={styles.promoStrip}>
-        {PROMO_BANNERS.map((b) => (
-          <div key={b.id} className={styles.promoCard}>
-            <span className={styles.promoAccent}>{b.accent}</span>
-            <h3 className={styles.promoTitle}>{b.title}</h3>
-            <p className={styles.promoSubtitle}>{b.subtitle}</p>
-          </div>
-        ))}
       </div>
 
       {popularDishes.length > 0 && (

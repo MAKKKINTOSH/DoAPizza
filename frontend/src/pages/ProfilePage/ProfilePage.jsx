@@ -16,10 +16,12 @@ function formatDate(iso) {
 }
 
 function OrderCard({ order }) {
-  const total = order.items.reduce(
+  const subtotal = order.items.reduce(
     (sum, item) => sum + parseFloat(item.dish_variant.price) * item.quantity,
     0,
   );
+  const discount = parseFloat(order.bonus_discount) || 0;
+  const total = subtotal - discount;
 
   return (
     <div className={styles.orderCard}>
@@ -39,6 +41,9 @@ function OrderCard({ order }) {
           </li>
         ))}
       </ul>
+      {discount > 0 && (
+        <div className={styles.orderDiscount}>Бонусы: −{discount.toFixed(0)} ₽</div>
+      )}
       <div className={styles.orderTotal}>Итого: {total.toFixed(0)} ₽</div>
     </div>
   );
@@ -54,6 +59,9 @@ export function ProfilePage() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState(null);
 
+  const [bonus, setBonus] = useState(null);
+  const [bonusLoading, setBonusLoading] = useState(false);
+
   useEffect(() => {
     setName(user?.name || '');
   }, [user?.name]);
@@ -68,6 +76,15 @@ export function ProfilePage() {
         setOrdersError(result.message);
       }
       setOrdersLoading(false);
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setBonusLoading(true);
+    ordersApi.getUserBonus(user.id).then((result) => {
+      if (result.success) setBonus(result);
+      setBonusLoading(false);
     });
   }, [user?.id]);
 
@@ -161,13 +178,40 @@ export function ProfilePage() {
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Бонусы</h2>
-        <p className={styles.text}>
-          Здесь будет отображаться ваш бонусный баланс, история начислений и правила программы лояльности.
-        </p>
-        <div className={styles.placeholder}>
-          <p>Пока бонусов нет.</p>
-          <p>Оформляйте заказы, и бонусы начнут накапливаться.</p>
+        <div className={styles.bonusRules}>
+          <p>За каждый доставленный заказ начисляется <strong>5%</strong> от его суммы в виде бонусов.</p>
+          <p>Бонусы можно списать при оформлении следующего заказа — 1 бонус = 1 ₽.</p>
         </div>
+        {bonusLoading && <p className={styles.text}>Загрузка...</p>}
+        {!bonusLoading && bonus !== null && (
+          <>
+            <div className={styles.bonusBalance}>
+              Баланс: <strong>{Math.floor(bonus.balance)} бонусов</strong>
+            </div>
+            {bonus.transactions.length > 0 ? (
+              <ul className={styles.bonusList}>
+                {bonus.transactions.map((tx) => {
+                  const earned = tx.transaction_type === 'earned';
+                  return (
+                    <li key={tx.id} className={styles.bonusItem}>
+                      <span className={earned ? styles.bonusEarned : styles.bonusRedeemed}>
+                        {earned ? '+' : ''}{parseFloat(tx.amount).toFixed(0)} бонусов
+                      </span>
+                      <span className={styles.bonusMeta}>
+                        {earned ? 'Начислено' : 'Списано'} · заказ №{tx.order} · {formatDate(tx.created_at)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className={styles.placeholder}>
+                <p>Бонусов пока нет.</p>
+                <p>Оформляйте заказы, и бонусы начнут накапливаться.</p>
+              </div>
+            )}
+          </>
+        )}
       </section>
     </div>
   );
