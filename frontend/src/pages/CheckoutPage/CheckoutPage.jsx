@@ -146,6 +146,10 @@ export function CheckoutPage() {
   const [submitError, setSubmitError] = useState('');
   const [addressError, setAddressError] = useState('');
 
+  const [bonusBalance, setBonusBalance] = useState(0);
+  const [bonusToUse, setBonusToUse] = useState(0);
+  const [bonusInput, setBonusInput] = useState('');
+
   useEffect(() => {
     if (user) {
       setAddress((prev) => ({
@@ -155,6 +159,20 @@ export function CheckoutPage() {
       }));
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    ordersApi.getUserBonus(user.id).then((result) => {
+      if (result.success) setBonusBalance(Math.floor(result.balance));
+    });
+  }, [user?.id]);
+
+  const handleBonusInput = (raw) => {
+    const digits = raw.replace(/\D/g, '');
+    setBonusInput(digits);
+    const val = parseInt(digits, 10) || 0;
+    setBonusToUse(Math.min(val, bonusBalance, Math.floor(totalPrice)));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -184,6 +202,7 @@ export function CheckoutPage() {
       email: user?.email || undefined,
       address: pickup ? '' : (address.address || '').trim(),
       comment: (address.comment || '').trim() || undefined,
+      bonus_points: bonusToUse > 0 ? bonusToUse : undefined,
       items: items.map((item) => ({
         dish_variant_id: item.variant?.id,
         quantity: item.quantity,
@@ -294,6 +313,38 @@ export function CheckoutPage() {
           onChange={(v) => setAddress({ ...address, comment: v })}
           placeholder="Дополнительные пожелания"
         />
+
+        {bonusBalance > 0 && (
+          <div className={styles.bonusSection}>
+            <div className={styles.bonusSectionHeader}>
+              <span className={styles.bonusLabel}>Бонусы</span>
+              <span className={styles.bonusAvail}>Доступно: {bonusBalance} бонусов</span>
+            </div>
+            <div className={styles.bonusRow}>
+              <input
+                type="number"
+                min={0}
+                max={Math.min(bonusBalance, Math.floor(totalPrice))}
+                value={bonusInput}
+                onChange={(e) => handleBonusInput(e.target.value)}
+                placeholder="0"
+                className={styles.bonusInput}
+              />
+              <button
+                type="button"
+                className={styles.bonusMax}
+                onClick={() => handleBonusInput(String(Math.min(bonusBalance, Math.floor(totalPrice))))}
+              >
+                Списать всё
+              </button>
+            </div>
+            {bonusToUse > 0 && (
+              <p className={styles.bonusHint}>
+                Скидка: −{bonusToUse} ₽ · к оплате: {formatPrice(totalPrice - bonusToUse)}
+              </p>
+            )}
+          </div>
+        )}
 
         {submitError && <p className={styles.submitError}>{submitError}</p>}
 

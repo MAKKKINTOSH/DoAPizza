@@ -63,4 +63,20 @@ export const ordersApi = {
       };
     }
   },
+
+  /**
+   * Бонусный баланс и история транзакций пользователя
+   * @param {number} userId
+   */
+  async getUserBonus(userId) {
+    try {
+      const data = await apiClient.get(ENDPOINTS.ORDERS.USER_BONUS(userId));
+      return { success: true, balance: parseFloat(data.balance), transactions: data.transactions };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.data?.detail || error.message || 'Ошибка при загрузке бонусов',
+      };
+    }
+  },
 };

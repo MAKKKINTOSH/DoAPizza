@@ -1,12 +1,14 @@
+from decimal import Decimal
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Sum
 from drf_spectacular.utils import extend_schema, OpenApiExample
 
-from .models import Order
-from .serializers import OrderSerializer, OrderCreateSerializer
+from .models import Order, BonusTransaction
+from .serializers import OrderSerializer, OrderCreateSerializer, UserBonusSerializer
 from .filters import OrderFilter
 
 
@@ -84,3 +86,19 @@ class OrderCreateView(APIView):
             OrderSerializer(order).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class UserBonusView(APIView):
+    """
+    GET /api/orders/bonus/users/{user_id}/
+    Баланс бонусов и история транзакций пользователя.
+    """
+
+    def get(self, request, user_id):
+        transactions = BonusTransaction.objects.filter(user_id=user_id).order_by('-created_at')
+        balance = transactions.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        data = UserBonusSerializer({
+            'balance': balance,
+            'transactions': transactions,
+        }).data
+        return Response(data)

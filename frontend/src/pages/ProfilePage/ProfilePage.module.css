@@ -142,6 +142,13 @@
   color: var(--color-text);
 }
 
+.orderDiscount {
+  font-size: 13px;
+  color: var(--color-success, #28a745);
+  text-align: right;
+  margin-bottom: 4px;
+}
+
 .orderTotal {
   font-size: 15px;
   font-weight: 700;
@@ -149,5 +156,68 @@
   text-align: right;
   border-top: 1px solid var(--color-border);
   padding-top: 10px;
+}
+
+.bonusRules {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-muted);
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bonusRules p {
+  margin: 0;
+}
+
+.bonusBalance {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 16px;
+}
+
+.bonusBalance strong {
+  color: var(--color-primary);
+}
+
+.bonusList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bonusItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bonusEarned {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-success, #28a745);
+}
+
+.bonusRedeemed {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-muted);
+}
+
+.bonusMeta {
+  font-size: 13px;
+  color: var(--color-muted);
 }
 

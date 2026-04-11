@@ -22,5 +22,6 @@ export const ENDPOINTS = {
     CREATE: '/orders/create',
     USER_ORDERS: (userId) => `/orders/users/${userId}/`,
     USER_ORDER: (userId, orderId) => `/orders/users/${userId}/${orderId}/`,
+    USER_BONUS: (userId) => `/orders/bonus/users/${userId}/`,
   },
 };

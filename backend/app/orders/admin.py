@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Courier, Order, OrderItem
+from .models import Courier, Order, OrderItem, BonusTransaction
 
 
 @admin.register(Courier)
@@ -58,3 +58,17 @@ class OrderItemAdmin(admin.ModelAdmin):
     list_display = ['order', 'dish_variant', 'quantity']
     search_fields = ['order__id', 'dish_variant__dish__name']
     autocomplete_fields = ['order', 'dish_variant']
+
+
+@admin.register(BonusTransaction)
+class BonusTransactionAdmin(admin.ModelAdmin):
+    list_display = ['user', 'transaction_type', 'amount', 'order', 'created_at']
+    list_filter = ['transaction_type', 'created_at']
+    search_fields = ['user__phone_number']
+    readonly_fields = ['user', 'order', 'amount', 'transaction_type', 'created_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
