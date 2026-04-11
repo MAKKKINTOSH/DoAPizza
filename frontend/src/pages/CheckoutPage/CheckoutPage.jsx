@@ -5,6 +5,7 @@ import { useAuth } from '../../features/auth';
 import { ordersApi } from '../../shared/api';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
+import { useToast } from '../../shared/ui/Toast';
 import { formatPrice } from '../../shared/lib/formatPrice';
 import styles from './CheckoutPage.module.css';
 
@@ -134,6 +135,7 @@ function parsePhoneInput(value) {
 export function CheckoutPage() {
   const { items, totalPrice, getItemPrice, clearCart } = useCart();
   const { user, updateUserName } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [address, setAddress] = useState({
     name: user?.name || '',
@@ -215,6 +217,7 @@ export function CheckoutPage() {
 
     if (result.success) {
       clearCart();
+      showToast('Заказ успешно оформлен!');
       navigate('/?order=success');
     } else {
       setSubmitError(result.message || 'Не удалось оформить заказ');
